@@ -5,20 +5,20 @@
 	import PlayerBar from '$lib/PlayerBar.svelte'
 </script>
 
-<main class="p-4 flex flex-col">
-	<div class="grow flex">
-		<div class="grow flex flex-col">
+<main class="flex max-h-screen flex-col p-4">
+	<div class="flex grow">
+		<div class="flex grow flex-col">
 			<header
-				class="flex items-center justify-center mx-auto w-1/2 min-w-[300px] max-w-[600px] px-2 gap-2 bg-surface-200-700-token rounded-md"
+				class="bg-surface-200-700-token mx-auto mb-4 flex h-12 w-1/2 min-w-[300px] max-w-[600px] items-center justify-center gap-2 rounded-md px-2"
 			>
 				<Search />
 				<input
 					type="search"
-					class="bg-transparent border-none grow h-12 rounded-none focus:ring-0"
+					class="h-12 grow rounded-none border-none bg-transparent focus:ring-0"
 					placeholder="Search songs..."
 				/>
 			</header>
-			<section class="flex flex-wrap grow gap-2 mr-4 mt-4 overflow-auto">
+			<section class="mr-4 flex max-h-[calc(100vh-192px)] flex-wrap gap-2 overflow-y-auto p-1">
 				<SongBox tags="[Pop], [Rock], [Hip Hop], [Hip Hop]" />
 				<SongBox tags="[R&B], [Jazz], [Blues]" />
 				<SongBox tags="[Country]" />
@@ -26,10 +26,6 @@
 					tags="[Electronic], [Dance], [Techno], [Electronic], [Dance], [Techno], [Electronic], [Dance], [Techno]"
 				/>
 				<SongBox tags="[Classical], [Orchestral]" />
-				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
-				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
-				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
-				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
 				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
 				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
 				<SongBox tags="[Reggae], [Ska], [Dub], [Classical], [Orchestral]" />
