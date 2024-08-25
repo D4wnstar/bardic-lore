@@ -1,7 +1,12 @@
 <script lang="ts">
 	import '../app.css'
 	import LeftSidebar from '$lib/LeftSidebar.svelte'
+	import { initializeStores, Toast } from '@skeletonlabs/skeleton'
+
+	initializeStores()
 </script>
+
+<Toast />
 
 <div class="grid h-screen w-screen grid-rows-[auto_1fr_auto]">
 	<!-- Header -->

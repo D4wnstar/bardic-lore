@@ -1,40 +1,41 @@
-<script>
-	import { Bot, PanelRightOpen, Search, Settings, Tag } from 'lucide-svelte'
+<script lang="ts">
+	import { Bot, Folder, PanelRightOpen, Settings, Tag } from 'lucide-svelte'
+	import Tags from './left-sidebar-tabs/Tags.svelte'
+	import AudioSources from './left-sidebar-tabs/AudioSources.svelte'
+
+	let tabIndex: number = 1
 </script>
 
-<aside class="variant-soft-surface h-screen">
-	<div class="p-2 w-full flex gap-1">
+<aside class="variant-soft-surface h-screen w-[300px]">
+	<div class="flex w-full gap-1 p-2">
 		<button class="btn-icon rounded-none hover:variant-filled-surface"><PanelRightOpen /></button>
-		<button class="btn-icon rounded-none hover:variant-filled-primary variant-filled-primary"
-			><Tag /></button
+		<button
+			class={`btn-icon rounded-none ${tabIndex === 1 ? 'variant-filled-primary' : 'hover:variant-filled-primary'}`}
+			on:click={() => (tabIndex = 1)}><Tag /></button
 		>
-		<button class="btn-icon rounded-none hover:variant-filled-primary"><Bot /></button>
-		<button class="btn-icon rounded-none hover:variant-filled-primary"><Settings /></button>
+		<button
+			class={`btn-icon rounded-none ${tabIndex === 2 ? 'variant-filled-primary' : 'hover:variant-filled-primary'}`}
+			on:click={() => (tabIndex = 2)}><Folder /></button
+		>
+		<button
+			class={`btn-icon rounded-none ${tabIndex === 3 ? 'variant-filled-primary' : 'hover:variant-filled-primary'}`}
+			on:click={() => (tabIndex = 3)}><Bot /></button
+		>
+		<button
+			class={`btn-icon rounded-none ${tabIndex === 4 ? 'variant-filled-primary' : 'hover:variant-filled-primary'}`}
+			on:click={() => (tabIndex = 4)}><Settings /></button
+		>
 	</div>
 
-	<div class="flex space-x-2 items-center px-2 bg-surface-200-700-token">
-		<Search />
-		<input
-			type="search"
-			class="bg-transparent border-none w-full h-12 rounded-none focus:ring-0"
-			placeholder="Search tags..."
-		/>
-	</div>
-
-	<div class="my-2 flex items-center justify-center gap-2">
-		<button class="btn variant-soft-primary">ALL</button>
-		|
-		<button class="btn variant-soft-primary opacity-40">ANY</button>
-	</div>
-
-	<div class="space-y-2 mx-1">
-		<div class="bg-secondary-50-900-token p-2 rounded-md">
-			<strong>Selected</strong>
-			<div>tags here</div>
-		</div>
-		<div class="bg-tertiary-50-900-token p-2 rounded-md">
-			<strong>Available</strong>
-			<div>tags here</div>
-		</div>
-	</div>
+	{#if tabIndex === 1}
+		<Tags />
+	{:else if tabIndex === 2}
+		<AudioSources />
+	{:else if tabIndex === 3}
+		<!-- Add content for Bot settings here -->
+		<span>unimplemented bot</span>
+	{:else if tabIndex === 4}
+		<!-- Add content for App settings here -->
+		<span>unimplemented settings</span>
+	{/if}
 </aside>
