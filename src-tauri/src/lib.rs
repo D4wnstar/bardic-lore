@@ -4,7 +4,7 @@ mod settings;
 
 use std::{fs, path::PathBuf, sync::Mutex};
 
-use files::save_settings_to_disk;
+use files::{save_settings_to_disk, TrackList};
 use playback::{GlobalStream, SinkList};
 use settings::AppSettings;
 use tauri::Manager;
@@ -26,6 +26,8 @@ pub enum Error {
     Source(String),
     #[error("Operation cancelled. {0}")]
     Cancelled(String),
+    #[error(transparent)]
+    Symphonia(#[from] symphonia::core::errors::Error),
 }
 
 impl serde::Serialize for Error {
@@ -83,12 +85,14 @@ pub fn run() {
         .manage(GlobalStream::default())
         .manage(SinkList::default())
         .manage(Mutex::new(settings))
+        .manage(Mutex::new(TrackList::default()))
         .invoke_handler(tauri::generate_handler![
             playback::play,
             files::add_audio_sources,
             files::get_audio_sources,
             files::update_audio_source,
             files::delete_audio_source,
+            files::refresh_audio_files,
         ])
         .on_window_event(move |window, event| match event {
             tauri::WindowEvent::Destroyed => {

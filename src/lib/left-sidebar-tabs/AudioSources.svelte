@@ -29,6 +29,17 @@
 		sources = event.detail.sources
 	}
 
+	async function refreshFiles() {
+		let tracks = await invoke('refresh_audio_files').catch((err) => {
+			console.error(`Error while getting audio sources. Error: ${err}`)
+			return []
+		})
+
+		for (const track of tracks) {
+			console.log(track)
+		}
+	}
+
 	let sources: AudioSource[] = []
 
 	onMount(async () => {
@@ -53,6 +64,8 @@
 		<button class="variant-ghost-primary btn self-center" on:click={selectFolder}>
 			Add sources
 		</button>
-		<button class="variant-ghost-primary btn self-center">Refresh files</button>
+		<button class="variant-ghost-primary btn self-center" on:click={refreshFiles}>
+			Refresh files
+		</button>
 	</div>
 </div>
