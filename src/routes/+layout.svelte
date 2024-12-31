@@ -1,24 +1,18 @@
 <script lang="ts">
-	import '../app.css'
-	import LeftSidebar from '$lib/LeftSidebar.svelte'
-	import { initializeStores, Toast } from '@skeletonlabs/skeleton'
+    import '../app.css'
+    import type { Snippet } from 'svelte'
+    import type { LayoutData } from './$types'
+    import { ToastProvider } from '@skeletonlabs/skeleton-svelte'
 
-	initializeStores()
+    let { data, children }: { data: LayoutData; children: Snippet } = $props()
 </script>
 
-<Toast />
+<svelte:head>
+    <title>Bardic Lore</title>
+</svelte:head>
 
-<div class="grid h-screen w-screen grid-rows-[auto_1fr_auto]">
-	<!-- Header -->
-	<!-- <header class="bg-red-500 p-4">(header)</header> -->
-	<!-- Grid Columns -->
-	<div class="grid grid-cols-[auto_1fr]">
-		<!-- Left Sidebar. -->
-		<!-- <aside class="bg-yellow-500 p-4">(sidebar)</aside> -->
-		<LeftSidebar />
-		<!-- Main Content -->
-		<slot />
-	</div>
-	<!-- Footer -->
-	<!-- <footer class="bg-blue-500 p-4">(footer)</footer> -->
-</div>
+<ToastProvider>
+    <div class="h-screen w-screen">
+        {@render children()}
+    </div>
+</ToastProvider>
