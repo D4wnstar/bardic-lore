@@ -3,6 +3,7 @@ import typography from '@tailwindcss/typography'
 import { skeleton, contentPath } from '@skeletonlabs/skeleton/plugin'
 import * as themes from '@skeletonlabs/skeleton/themes'
 import type { Config } from 'tailwindcss'
+import Cosmos from './static/cosmos'
 
 export default {
     content: [
@@ -20,7 +21,7 @@ export default {
         forms,
         skeleton({
             // NOTE: each theme included will increase the size of your CSS bundle
-            themes: [themes.catppuccin]
+            themes: [themes.wintry, Cosmos]
         })
     ]
 } satisfies Config

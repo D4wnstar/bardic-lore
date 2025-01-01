@@ -15,15 +15,13 @@
     }
 
     let tracks: Track[] = $state([])
-    onMount(async () => {
-        await getTracks()
-    })
+    onMount(getTracks)
 </script>
 
-<div class="grid grid-cols-[auto_1fr]">
+<div class="grid grid-cols-[auto_1fr] h-screen">
     <LeftSidebar {getTracks} />
-    <main class="flex max-h-screen flex-col p-4">
-        <div class="flex grow">
+    <main class="flex flex-col p-4 min-h-0">
+        <div class="flex grow min-h-0">
             <div class="flex grow flex-col">
                 <header
                     class="bg-surface-100-900 mx-auto mb-4 flex h-12 w-1/2 min-w-[300px] max-w-[600px] items-center justify-center gap-2 rounded-md px-2"
@@ -35,9 +33,7 @@
                         placeholder="Search songs..."
                     />
                 </header>
-                <div
-                    class="mr-4 flex max-h-[calc(100vh-192px)] flex-wrap gap-2 overflow-y-auto p-1"
-                >
+                <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
                     {#each tracks as track}
                         <SongBox title={track.title} tags={track.album} />
                     {:else}

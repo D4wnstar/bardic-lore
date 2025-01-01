@@ -9,10 +9,11 @@
 
     interface Props {
         source: AudioSource
-        getTracks: Function
+        refreshTracks: Function
+        getAudioSources: Function
     }
 
-    let { source, getTracks }: Props = $props()
+    let { source, refreshTracks, getAudioSources }: Props = $props()
 
     const toast: ToastContext = getContext('toast')
 
@@ -36,7 +37,7 @@
             })
         })
 
-        await getTracks()
+        await refreshTracks()
     }
 
     async function deleteAudioSource(path: string) {
@@ -51,23 +52,24 @@
             })
         })
 
-        await getTracks()
+        await getAudioSources()
+        await refreshTracks()
     }
 
-    let folderName = $state('')
-    onMount(async () => (folderName = await basename(source.path)))
-
+    let namePromise = $derived(basename(source.path))
     let active = $state(source.active)
     let recursive = $state(source.recursive)
 </script>
 
 <div
-    class={`variant-soft-secondary mx-2 rounded-md px-4 py-2 ${active ? '' : 'opacity-50'}`}
+    class={`preset-filled-surface-100-900 !bg-opacity-50 mx-2 rounded-md border-[1px] border-primary-100-900 px-4 py-2 ${active ? '' : 'opacity-50'}`}
 >
-    <div class="flex">
-        <h4 class="h4 grow"><strong>{folderName}</strong></h4>
+    <div class="flex mb-2">
+        <h4 class="type-scale-5 grow text-secondary-700-300">
+            <strong>{#await namePromise then name}{name}{/await}</strong>
+        </h4>
         <button
-            class="btn-icon rounded-none hover:variant-filled-surface"
+            class="btn-icon rounded hover:preset-filled-surface-100-900"
             onclick={() => deleteAudioSource(source.path)}
         >
             <Trash2 />

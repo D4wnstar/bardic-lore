@@ -3,7 +3,7 @@
     import { invoke } from '@tauri-apps/api/core'
 </script>
 
-<div class="preset-outlined-surface-500 mt-2 max-h-24 min-h-24 rounded-md p-2">
+<div class="preset-outlined-surface-500 mt-2 h-24 rounded-md p-2 flex-none">
     <div class="flex justify-center gap-2">
         <button class="btn-icon rounded-none hover:preset-filled-surface-500"
             ><Shuffle /></button

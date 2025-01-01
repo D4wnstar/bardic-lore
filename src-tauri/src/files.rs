@@ -54,22 +54,20 @@ fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource
     return Ok(sources);
 }
 
-/// Type safe setter for audio sources.
+/// Type safe setter for audio sources. Sorts sources alphabetically before saving.
 fn set_sources_in_store(
     audio_sources: &HashSet<AudioSource>,
     store: &Arc<Store<Wry>>,
 ) -> Result<(), Error> {
-    store.set(
-        AUDIO_SOURCES_SETTING,
-        serde_json::to_value(audio_sources.clone())?,
-    );
+    let mut vec: Vec<&AudioSource> = audio_sources.iter().collect();
+    vec.sort();
+    store.set(AUDIO_SOURCES_SETTING, serde_json::to_value(vec)?);
 
     return Ok(());
 }
 
 #[tauri::command]
 pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, Error> {
-    println!("Opening dir selection");
     let paths = app.dialog().file().blocking_pick_folders();
 
     let store = app.store(SETTINGS_FILENAME)?;

@@ -31,3 +31,23 @@ impl AudioSource {
         };
     }
 }
+
+impl PartialOrd for AudioSource {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AudioSource {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let maybe_name1 = self.path.file_stem();
+        let maybe_name2 = other.path.file_stem();
+        if let None = maybe_name1 {
+            return std::cmp::Ordering::Less;
+        }
+        if let None = maybe_name2 {
+            return std::cmp::Ordering::Greater;
+        }
+        return maybe_name1.unwrap().cmp(maybe_name2.unwrap());
+    }
+}

@@ -3,7 +3,7 @@
 </script>
 
 <div
-    class="flex min-w-[15rem] flex-col items-center rounded-md p-2 text-center"
+    class="flex min-w-[15rem] flex-col items-center rounded-md p-2 text-center min-h-0 overflow-hidden"
 >
     <div class="grow">
         <h3 class="h3">Currently Playing</h3>

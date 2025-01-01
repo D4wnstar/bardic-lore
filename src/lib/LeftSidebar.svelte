@@ -8,13 +8,13 @@
     }
     let { getTracks }: Props = $props()
 
-    let tabIndex: number = $state(1)
+    let tabIndex: number = $state(2)
 </script>
 
 <aside
-    class="preset-filled-surface h-screen w-[300px] border-r-[1px] border-surface-100-900 px-2"
+    class="preset-filled-surface h-full w-[300px] border-r-[1px] border-surface-100-900 px-2 flex flex-col overflow-hidden"
 >
-    <div class="flex w-full gap-1 py-2">
+    <div class="flex w-full gap-1 py-2 h-12">
         <button class="btn-icon rounded-none hover:variant-filled-surface"
             ><PanelRightOpen /></button
         >
