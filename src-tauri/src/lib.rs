@@ -1,3 +1,5 @@
+// mod control;
+mod discord;
 mod files;
 mod settings;
 
@@ -5,7 +7,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use files::TrackList;
+use serde_json::json;
 use settings::AppSettings;
+use tauri::App;
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, thiserror::Error)]
@@ -41,8 +45,13 @@ pub const AUDIO_SOURCES_SETTING: &str = "audio-sources";
 pub const TRACKS_FILENAME: &str = "tracks.json";
 pub const TRACKS_NAME: &str = "tracks";
 
+pub const DISCORD_FILENAME: &str = "discord.json";
+pub const GUILDS_NAME: &str = "guilds";
+pub const CHANNELS_NAME: &str = "channels";
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+#[tokio::main]
+pub async fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -55,27 +64,30 @@ pub fn run() {
             files::update_audio_source,
             files::delete_audio_source,
             files::refresh_audio_files,
+            discord::create_discord_client,
         ])
-        .setup(|app| {
-            let settings = AppSettings::default();
-            let mut defaults = HashMap::new();
-            defaults.insert(
-                AUDIO_SOURCES_SETTING.into(),
-                serde_json::to_value(settings.audio_sources)?,
-            );
-
-            app.store_builder(SETTINGS_FILENAME)
-                .defaults(defaults)
-                .build()?;
-
-            let mut track_defaults = HashMap::new();
-            track_defaults.insert(TRACKS_NAME.into(), serde_json::to_value("[]")?);
-            app.store_builder(TRACKS_FILENAME)
-                .defaults(track_defaults)
-                .build()?;
-
-            Ok(())
-        })
+        .setup(setup_stores)
         .run(tauri::generate_context!())
-        .unwrap_or_else(|err| eprintln!("Error while running tauri application. Error: {:?}", err));
+        .unwrap_or_else(|err| eprintln!("Error while running Tauri application. Error: {:?}", err));
+}
+
+fn setup_stores(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    let settings = AppSettings::default();
+    let mut defaults = HashMap::new();
+    defaults.insert(
+        AUDIO_SOURCES_SETTING.into(),
+        serde_json::to_value(settings.audio_sources)?,
+    );
+
+    app.store_builder(SETTINGS_FILENAME)
+        .defaults(defaults)
+        .build()?;
+
+    let mut track_defaults = HashMap::new();
+    track_defaults.insert(TRACKS_NAME.into(), json!("[]"));
+    app.store_builder(TRACKS_FILENAME)
+        .defaults(track_defaults)
+        .build()?;
+
+    return Ok(());
 }

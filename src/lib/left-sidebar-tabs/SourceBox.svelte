@@ -1,7 +1,6 @@
 <script lang="ts">
     import type { AudioSource } from '$lib/types'
     import { basename } from '@tauri-apps/api/path'
-    import { onMount } from 'svelte'
     import { getContext } from 'svelte'
     import { type ToastContext, Switch } from '@skeletonlabs/skeleton-svelte'
     import { invoke } from '@tauri-apps/api/core'

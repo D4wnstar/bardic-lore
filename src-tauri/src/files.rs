@@ -1,9 +1,4 @@
-use std::{
-    collections::HashSet,
-    fs::DirEntry,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, fs::DirEntry, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 // use symphonia::core::{
@@ -12,13 +7,13 @@ use serde::{Deserialize, Serialize};
 //     meta::{MetadataOptions, StandardTagKey},
 //     probe::Hint,
 // };
-use tauri::{AppHandle, State, Wry};
+use tauri::{AppHandle, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::{Store, StoreExt};
 
 use crate::{
-    settings::{AppSettings, AudioSource},
-    Error, AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME, TRACKS_NAME,
+    settings::AudioSource, Error, AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME,
+    TRACKS_NAME,
 };
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

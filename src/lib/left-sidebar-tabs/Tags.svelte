@@ -3,6 +3,7 @@
 </script>
 
 <div id="tag-sidebar" class="flex flex-col h-full min-h-0">
+    <h3 class="h3 text-center">Tags</h3>
     <div class="flex-none bg-surface-200-800 flex items-center space-x-2 px-2">
         <Search />
         <input

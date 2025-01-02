@@ -11,3 +11,14 @@ export type Track = {
     path: string
     extension: string
 }
+
+export type GuildSlug = {
+    id: number
+    name: string
+    voice_channels: VoiceChannelSlug[]
+}
+
+export type VoiceChannelSlug = {
+    id: number
+    name: string
+}

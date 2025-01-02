@@ -2,13 +2,14 @@
     import { Bot, Folder, PanelRightOpen, Settings, Tag } from 'lucide-svelte'
     import Tags from '$lib/left-sidebar-tabs/Tags.svelte'
     import AudioSources from '$lib/left-sidebar-tabs/AudioSources.svelte'
+    import BotSettings from './left-sidebar-tabs/BotSettings.svelte'
 
     interface Props {
         getTracks: Function
     }
     let { getTracks }: Props = $props()
 
-    let tabIndex: number = $state(2)
+    let tabIndex: number = $state(3)
 </script>
 
 <aside
@@ -42,7 +43,7 @@
         <AudioSources {getTracks} />
     {:else if tabIndex === 3}
         <!-- Add content for Bot settings here -->
-        <span>unimplemented bot</span>
+        <BotSettings />
     {:else if tabIndex === 4}
         <!-- Add content for App settings here -->
         <span>unimplemented settings</span>
