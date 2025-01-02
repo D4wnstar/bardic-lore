@@ -29,7 +29,7 @@
                     <Search />
                     <input
                         type="search"
-                        class="h-12 grow rounded-none border-none bg-transparent focus:ring-0"
+                        class="h-12 grow border-none bg-transparent focus:ring-0"
                         placeholder="Search songs..."
                     />
                 </header>

@@ -2,6 +2,17 @@ use std::{collections::HashSet, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub const SETTINGS_FILENAME: &str = "settings.json";
+pub const AUDIO_SOURCES_SETTING: &str = "audio-sources";
+pub const BOT_TOKEN_SETTING: &str = "bot-token";
+
+pub const TRACKS_FILENAME: &str = "tracks.json";
+pub const TRACKS_SETTING: &str = "tracks";
+
+pub const DISCORD_FILENAME: &str = "discord.json";
+pub const GUILDS_SETTING: &str = "guilds";
+pub const CHANNELS_SETTING: &str = "channels";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppSettings {
     pub audio_sources: HashSet<AudioSource>,

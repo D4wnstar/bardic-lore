@@ -12,8 +12,10 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::{Store, StoreExt};
 
 use crate::{
-    settings::AudioSource, Error, AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME,
-    TRACKS_NAME,
+    settings::{
+        AudioSource, AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME, TRACKS_SETTING,
+    },
+    Error,
 };
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,7 +154,7 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
     tracks.sort();
 
     let tracks_store = app.store(TRACKS_FILENAME)?;
-    tracks_store.set(TRACKS_NAME, serde_json::to_value(tracks.clone())?);
+    tracks_store.set(TRACKS_SETTING, serde_json::to_value(tracks.clone())?);
     return Ok(tracks.clone());
 }
 

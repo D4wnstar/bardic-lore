@@ -3,32 +3,29 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::{
-    all::{
-        ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId, Message,
-        Ready,
-    },
+    all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId, Message},
     async_trait,
     prelude::TypeMapKey,
 };
 
-// An HTTP client for yt-dlp to operate
 use reqwest::Client as HttpClient;
 use songbird::SerenityInit;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
+use tokio::sync::Mutex as AsyncMutex;
 
-use crate::{DISCORD_FILENAME, GUILDS_NAME};
+use crate::{
+    settings::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
+    Error,
+};
+
+/// Wrapper struct to check if a serenity client already exists
+pub struct IsSerenityClientOn(pub bool);
 
 pub struct HttpKey;
 
 impl TypeMapKey for HttpKey {
     type Value = HttpClient;
-}
-
-struct TauriApp;
-
-impl TypeMapKey for TauriApp {
-    type Value = AppHandle;
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, Hash)]
@@ -56,7 +53,9 @@ impl PartialEq for VoiceChannelSlug {
     }
 }
 
-pub struct Handler;
+pub struct Handler {
+    app: AppHandle,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -156,42 +155,19 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn ready(&self, _ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-        let guild_ids: Vec<GuildId> = ready.guilds.iter().map(|g| g.id).collect();
-
-        // let valid_guild_names: Vec<String> = valid_guild_ids
-        //     .iter()
-        //     .filter_map(|id| ctx.cache.guild(id))
-        //     .map(|g| g.name.clone())
-        //     .collect();
-
-        // let mut valid_channels = vec![];
-        // for id in valid_guild_ids.iter() {
-        //     if let Ok(channel) = id.channels(&ctx.http).await {
-        //         valid_channels.push(channel);
-        //     }
-        // }
-        // let channel_names_to_ids: Vec<HashMap<String, ChannelId>> = valid_channels
-        //     .iter()
-        //     .map(|map| {
-        //         map.iter().fold(HashMap::new(), |mut acc, kv_pair| {
-        //             if kv_pair.1.kind == ChannelType::Voice {
-        //                 acc.insert(kv_pair.1.name.clone(), kv_pair.0.clone());
-        //             }
-
-        //             return acc;
-        //         })
-        //     })
-        //     .collect();
-
-        println!("GUILD IDS: {:#?}", guild_ids);
-        // println!("GUILDS: {:#?}", valid_guild_names);
-        // println!("CHANNELS: {:#?}", channel_names_to_ids);
+    async fn cache_ready(&self, _ctx: Context, _guilds: Vec<GuildId>) {
+        // serenity has no API to tell the bot to do something from code,
+        // it can only handle Gateway events sent by Discord, such as chat messages
+        // We need to control the bot manually from the frontend though, so we
+        // setup Tauri event listeners instead. Whenever we want the bot to do something on
+        // command, we register a callback for an event right here and then emit that
+        // event from anywhere
+        self.app.listen("join-voice-channel", |ev| {
+            println!("Got told to join {}", ev.payload());
+        });
     }
 
-    async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
-        println!("GUILD: {}", guild.name);
+    async fn guild_create(&self, _ctx: Context, guild: Guild, _is_new: Option<bool>) {
         let voice_channels: Vec<VoiceChannelSlug> = guild
             .channels
             .iter()
@@ -207,22 +183,29 @@ impl EventHandler for Handler {
             })
             .collect();
 
-        if let Some(app_handle) = ctx.data.read().await.get::<TauriApp>() {
-            if let Ok(store) = app_handle.store(DISCORD_FILENAME) {
-                let guilds_value = store.get(GUILDS_NAME).unwrap_or(json!([]));
-                let mut guilds: HashSet<GuildSlug> =
-                    serde_json::from_value(guilds_value).unwrap_or(HashSet::new());
-                guilds.insert(GuildSlug {
-                    id: guild.id,
-                    name: guild.name,
-                    voice_channels,
-                });
-                if let Ok(value) = serde_json::to_value(guilds) {
-                    store.set(GUILDS_NAME, value);
-                }
+        if let Ok(store) = self.app.store(DISCORD_FILENAME) {
+            let guilds_value = store.get(GUILDS_SETTING).unwrap_or(json!([]));
+            let mut guilds: HashSet<GuildSlug> =
+                serde_json::from_value(guilds_value).unwrap_or(HashSet::new());
+            guilds.insert(GuildSlug {
+                id: guild.id,
+                name: guild.name,
+                voice_channels,
+            });
+            if let Ok(value) = serde_json::to_value(guilds) {
+                store.set(GUILDS_SETTING, value);
+                self.app.emit("updated-guilds", ()).unwrap_or_else(|why| {
+                        eprintln!("Failed to send updated-guilds event. Please refresh guilds manually. Reason: {why}")
+                    });
             }
+        } else {
+            eprintln!(
+                "Failed to get AppHandle from client context data. Guilds have not been updated"
+            )
         }
     }
+
+    // TODO: Also update on guild delete
 
     // async fn voice_state_update(&self, ctx: Context, old: Option<VoiceState>, new: VoiceState) {
     //     if let Some(old) = old {
@@ -256,23 +239,40 @@ impl EventHandler for Handler {
 }
 
 #[tauri::command]
-pub async fn create_discord_client(app: AppHandle) {
+pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
+    let client_exists_mutex = app.state::<AsyncMutex<IsSerenityClientOn>>();
+    let mut client_exists = client_exists_mutex.lock().await;
+    if client_exists.0 {
+        return Err(Error::SerenityClientAlreadyExists());
+    }
+
     // Get token from store
-    let token = "token here";
+    let store = app.store(SETTINGS_FILENAME)?;
+    let value = store.get(BOT_TOKEN_SETTING).unwrap_or("".into());
+    let token: String = serde_json::from_value(value)?;
     let mut ds_client = serenity::Client::builder(
         token,
         GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT,
     )
-    .event_handler(Handler)
+    .event_handler(Handler { app: app.clone() })
     .register_songbird()
+    // An HTTP client for yt-dlp to operate
     .type_map_insert::<HttpKey>(reqwest::Client::new())
-    .type_map_insert::<TauriApp>(app.clone())
-    .await
-    .expect("Error creating Discord client");
+    .await?;
 
     tokio::spawn(async move {
         if let Err(why) = ds_client.start().await {
             println!("Client error: {why:?}");
         }
     });
+
+    client_exists.0 = true;
+
+    return Ok(());
+}
+
+#[tauri::command]
+pub async fn is_bot_connected(app: AppHandle) -> bool {
+    let client_exists_mutex = app.state::<AsyncMutex<IsSerenityClientOn>>();
+    return client_exists_mutex.lock().await.0;
 }

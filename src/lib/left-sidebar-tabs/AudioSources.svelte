@@ -35,6 +35,15 @@
 
     async function refreshTracks(response = false) {
         await invoke('refresh_audio_files')
+            .then(() => {
+                if (response) {
+                    toast.create({
+                        title: '',
+                        description: 'Refreshed files',
+                        type: 'info'
+                    })
+                }
+            })
             .catch((err) => {
                 console.error(
                     `Error while getting audio sources. Error: ${err}`
@@ -44,15 +53,6 @@
                     description: err,
                     type: 'error'
                 })
-            })
-            .then(() => {
-                if (response) {
-                    toast.create({
-                        title: '',
-                        description: 'Refreshed files',
-                        type: 'info'
-                    })
-                }
             })
         await getTracks()
     }
@@ -76,13 +76,13 @@
 
     <div class="flex justify-center gap-x-2 pt-2">
         <button
-            class="preset-outlined-primary-500 btn self-center"
+            class="preset-outlined-primary-400-600 btn self-center"
             onclick={selectFolder}
         >
             Add sources
         </button>
         <button
-            class="preset-outlined-primary-500 btn self-center"
+            class="preset-outlined-primary-400-600 btn self-center"
             onclick={async () => await refreshTracks(true)}
         >
             Refresh files
