@@ -1,10 +1,10 @@
 [package]
 name = "bardic-lore"
 version = "0.1.0"
-description = "An app to organize music with tags and stream them to Discord"
+description = "An app to organize music with tags and stream it to Discord"
 authors = ["Samuele Vignoli"]
 edition = "2021"
-license = "Apache-2.0"
+license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

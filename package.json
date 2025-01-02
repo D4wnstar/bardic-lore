@@ -1,7 +1,7 @@
 {
   "name": "bardic-lore",
   "version": "0.1.0",
-  "description": "An app to organize music with tags and stream them to Discord",
+  "description": "An app to organize music with tags and stream it to Discord",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -11,7 +11,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri"
   },
-  "license": "Apache-2.0",
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "@tailwindcss/forms": "^0.5.9",
     "@tailwindcss/typography": "^0.5.15",
