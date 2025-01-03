@@ -3,25 +3,25 @@
     import { type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { getContext, onDestroy, onMount } from 'svelte'
     import { load } from '@tauri-apps/plugin-store'
-    import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+    import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         BOT_TOKEN_SETTING,
         DISCORD_FILENAME,
         GUILDS_SETTING,
         SETTINGS_FILENAME
     } from '$lib/store'
-    import type { GuildSlug } from '$lib/types'
+    import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
 
     const toast: ToastContext = getContext('toast')
 
     let guilds: GuildSlug[] = $state([])
     let botToken = $state('')
-    let localGuild: GuildSlug = {
+    let localGuild: GuildSlug = $state({
         id: 0,
         name: 'Offline Player',
-        voice_channels: [{ id: 0, name: 'Offline' }]
-    }
+        voice_channels: [{ id: 0, name: 'Offline', active: false }]
+    })
     let botConnected = $state(false)
 
     async function createClient() {
@@ -49,6 +49,19 @@
     async function refreshServers(makeToast = false) {
         const store = await load(DISCORD_FILENAME, { autoSave: false })
         guilds = (await store.get<GuildSlug[]>(GUILDS_SETTING)) ?? []
+
+        // If no voice channel is active, activate the offline channel
+        let localActiveState = true
+        guilds.forEach((guild) =>
+            guild.voice_channels.forEach((vchan) => {
+                if (vchan.active) {
+                    localActiveState = false
+                    return
+                }
+            })
+        )
+        localGuild.voice_channels[0].active = localActiveState
+
         if (makeToast) {
             toast.create({
                 description: 'Refreshed servers',
@@ -71,6 +84,45 @@
     async function updateBotToken() {
         const store = await load(SETTINGS_FILENAME, { autoSave: true })
         await store.set(BOT_TOKEN_SETTING, botToken)
+    }
+
+    async function handleChannelClick(
+        guild: GuildSlug,
+        channel: VoiceChannelSlug
+    ) {
+        if (channel.id === 0) {
+            // Channel ID 0 is given manually to the "offline channel"
+
+            // Find the guild the bot is currently in by findind the active voice channel
+            let activeGuild = guilds.find((guild) =>
+                guild.voice_channels.find((ch) => ch.active)
+            )
+            if (!activeGuild) {
+                return
+            }
+            await emit('leave-voice-channels', { guildId: activeGuild.id })
+            localGuild.voice_channels[0].active = true
+        } else {
+            await emit('join-voice-channel', {
+                guildId: guild.id,
+                channelId: channel.id
+            })
+            localGuild.voice_channels[0].active = false
+        }
+
+        // Update voice channels for the UI
+        for (const currGuild of guilds) {
+            for (const vchan of currGuild.voice_channels) {
+                vchan.active =
+                    currGuild.id === guild.id && vchan.id === channel.id
+                        ? true
+                        : false
+            }
+        }
+
+        // Also update the store
+        const store = await load(DISCORD_FILENAME, { autoSave: true })
+        await store.set(GUILDS_SETTING, guilds)
     }
 
     let unlisten: UnlistenFn | undefined
@@ -125,8 +177,10 @@
         >
     </div>
 
-    <ServerBox guild={localGuild} />
-    {#each guilds as guild}
-        <ServerBox {guild} />
-    {/each}
+    <div class="overflow-auto space-y-2">
+        <ServerBox guild={localGuild} onClick={handleChannelClick} />
+        {#each guilds as guild}
+            <ServerBox {guild} onClick={handleChannelClick} />
+        {/each}
+    </div>
 </div>

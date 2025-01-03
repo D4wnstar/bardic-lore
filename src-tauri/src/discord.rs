@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -45,6 +48,7 @@ impl PartialEq for GuildSlug {
 struct VoiceChannelSlug {
     id: ChannelId,
     name: String,
+    active: bool,
 }
 
 impl PartialEq for VoiceChannelSlug {
@@ -155,15 +159,72 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn cache_ready(&self, _ctx: Context, _guilds: Vec<GuildId>) {
+    async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
         // serenity has no API to tell the bot to do something from code,
         // it can only handle Gateway events sent by Discord, such as chat messages
         // We need to control the bot manually from the frontend though, so we
         // setup Tauri event listeners instead. Whenever we want the bot to do something on
         // command, we register a callback for an event right here and then emit that
         // event from anywhere
-        self.app.listen("join-voice-channel", |ev| {
-            println!("Got told to join {}", ev.payload());
+
+        let ctx = Arc::new(ctx);
+        let manager = songbird::get(&ctx).await.unwrap();
+
+        // Each callback needs to have ownership of whatever it needs since it outlives this functions
+        let ctx1 = Arc::clone(&ctx);
+        let manager1 = Arc::clone(&manager);
+        self.app.listen("join-voice-channel", move |ev| {
+            // The need for a tokio::spawn to allow for async causes annoying double-cloning of Arcs
+            // because they need to be moved twice (first in the callback, then in the tokio async task)
+            // Performance isn't a concern for these callbacks, but it's just kind of ugly
+            let ctx = Arc::clone(&ctx1);
+            let manager = Arc::clone(&manager1);
+            tokio::spawn(async move {
+                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+                let maybe_guild_id = payload.get("guildId").and_then(|id| id.parse::<u64>().ok());
+                let maybe_channel_id = payload
+                    .get("channelId")
+                    .and_then(|id| id.parse::<u64>().ok());
+                if let Some(guild_id) = maybe_guild_id {
+                    if let Some(channel_id) = maybe_channel_id {
+                        // The frontend only holds the id number, we need the whole object
+                        let (gid, cid) = {
+                            let guild = ctx.cache.guild(guild_id).unwrap();
+                            let channel =
+                                guild.channels.iter().find(|c| *c.0 == channel_id).unwrap();
+                            (guild.id, channel.0.clone())
+                        };
+
+                        manager
+                            .join(gid, cid)
+                            .await
+                            .expect("Failed to join channel");
+                    };
+                }
+            });
+        });
+
+        let ctx2 = Arc::clone(&ctx);
+        let manager2 = Arc::clone(&manager);
+        self.app.listen("leave-voice-channels", move |ev| {
+            let ctx = Arc::clone(&ctx2);
+            let manager = Arc::clone(&manager2);
+            tokio::spawn(async move {
+                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+                let maybe_guild_id = payload.get("guildId").and_then(|id| id.parse::<u64>().ok());
+                if let Some(guild_id) = maybe_guild_id {
+                    let gid = {
+                        let guild = ctx.cache.guild(guild_id).unwrap();
+                        guild.id
+                    };
+                    let has_handler = manager.get(gid).is_some();
+                    if has_handler {
+                        manager.remove(gid).await.expect("Failed to leave channel");
+                    } else {
+                        println!("Bot not in a voice channel")
+                    }
+                }
+            });
         });
     }
 
@@ -176,6 +237,7 @@ impl EventHandler for Handler {
                     return Some(VoiceChannelSlug {
                         id: id.clone(),
                         name: channel.name.clone(),
+                        active: false,
                     });
                 } else {
                     return None;

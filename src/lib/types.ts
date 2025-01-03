@@ -21,4 +21,5 @@ export type GuildSlug = {
 export type VoiceChannelSlug = {
     id: number
     name: string
+    active: boolean
 }

@@ -1,17 +1,12 @@
 <script lang="ts">
-    import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
-    import { emit } from '@tauri-apps/api/event'
+    import type { GuildSlug } from '$lib/types'
 
     interface Props {
         guild: GuildSlug
+        onClick: Function
     }
 
-    let { guild }: Props = $props()
-
-    async function joinVoiceChannel(channel: VoiceChannelSlug) {
-        console.log('Clicked', channel.name)
-        await emit('join-voice-channel', { channel })
-    }
+    let { guild, onClick }: Props = $props()
 </script>
 
 <div
@@ -24,9 +19,13 @@
     <div class="space-y-1">
         {#each guild.voice_channels.toSorted( (a, b) => a.name.localeCompare(b.name) ) as channel}
             <button
-                class="hover:bg-primary-100-900 p-1 w-full justify-start text-left"
+                class={[
+                    'p-1 w-full justify-start text-left',
+                    !channel.active && 'hover:bg-primary-100-900',
+                    channel.active && 'bg-primary-200-800'
+                ]}
                 onclick={() => {
-                    joinVoiceChannel(channel)
+                    onClick(guild, channel)
                 }}
             >
                 {channel.name}
