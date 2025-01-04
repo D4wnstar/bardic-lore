@@ -1,23 +1,16 @@
 use std::{collections::HashSet, fs::DirEntry, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-// use symphonia::core::{
-//     formats::FormatOptions,
-//     io::MediaSourceStream,
-//     meta::{MetadataOptions, StandardTagKey},
-//     probe::Hint,
-// };
 use tauri::{AppHandle, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::{Store, StoreExt};
 
 use crate::{
-    settings::{
-        AudioSource, AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME, TRACKS_SETTING,
-    },
+    stores::{AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME, TRACKS_SETTING},
     Error,
 };
 
+/* DATA STRUCTURES */
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Track {
     pub title: String,
@@ -39,30 +32,44 @@ impl Ord for Track {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct TrackList {
-    pub tracks: HashSet<Track>,
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub struct AudioSource {
+    pub path: PathBuf,
+    pub recursive: bool,
+    pub active: bool,
 }
 
-/// Type safe getter for audio sources. Will return an empty HashSet if not found in store.
-fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource>, Error> {
-    let value = store.get(AUDIO_SOURCES_SETTING).unwrap_or("[]".into());
-    let sources = serde_json::from_value(value)?;
-    return Ok(sources);
+impl AudioSource {
+    pub fn new(path: PathBuf) -> Self {
+        return AudioSource {
+            path,
+            recursive: false,
+            active: true,
+        };
+    }
 }
 
-/// Type safe setter for audio sources. Sorts sources alphabetically before saving.
-fn set_sources_in_store(
-    audio_sources: &HashSet<AudioSource>,
-    store: &Arc<Store<Wry>>,
-) -> Result<(), Error> {
-    let mut vec: Vec<&AudioSource> = audio_sources.iter().collect();
-    vec.sort();
-    store.set(AUDIO_SOURCES_SETTING, serde_json::to_value(vec)?);
-
-    return Ok(());
+impl PartialOrd for AudioSource {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
+impl Ord for AudioSource {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let maybe_name1 = self.path.file_stem();
+        let maybe_name2 = other.path.file_stem();
+        if let None = maybe_name1 {
+            return std::cmp::Ordering::Less;
+        }
+        if let None = maybe_name2 {
+            return std::cmp::Ordering::Greater;
+        }
+        return maybe_name1.unwrap().cmp(maybe_name2.unwrap());
+    }
+}
+
+/* TAURI COMMANDS */
 #[tauri::command]
 pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, Error> {
     let paths = app.dialog().file().blocking_pick_folders();
@@ -72,7 +79,7 @@ pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, E
     if let Some(paths) = paths {
         let sources = paths
             .iter()
-            .map(|path| AudioSource::from_path(path.clone().into_path().unwrap()));
+            .map(|path| AudioSource::new(path.clone().into_path().unwrap()));
         let mut audio_sources = get_sources_from_store(&store)?;
         audio_sources.extend(sources);
         set_sources_in_store(&audio_sources, &store)?;
@@ -80,13 +87,6 @@ pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, E
     } else {
         return Err(Error::Cancelled("No paths selected".to_string()));
     }
-}
-
-#[tauri::command]
-pub fn get_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, Error> {
-    let store = app.store(SETTINGS_FILENAME)?;
-    let audio_sources = get_sources_from_store(&store)?;
-    return Ok(audio_sources);
 }
 
 #[tauri::command]
@@ -230,3 +230,23 @@ fn get_track_from_direntry(direntry: DirEntry) -> Option<Track> {
 
 //     return Ok((album, artist, track_name));
 // }
+
+/* CONVENIENCE FUNCTIONS */
+/// Type safe getter for audio sources. Will return an empty HashSet if not found in store.
+fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource>, Error> {
+    let value = store.get(AUDIO_SOURCES_SETTING).unwrap_or("[]".into());
+    let sources = serde_json::from_value(value)?;
+    return Ok(sources);
+}
+
+/// Type safe setter for audio sources. Sorts sources alphabetically before saving.
+fn set_sources_in_store(
+    audio_sources: &HashSet<AudioSource>,
+    store: &Arc<Store<Wry>>,
+) -> Result<(), Error> {
+    let mut vec: Vec<&AudioSource> = audio_sources.iter().collect();
+    vec.sort();
+    store.set(AUDIO_SOURCES_SETTING, serde_json::to_value(vec)?);
+
+    return Ok(());
+}

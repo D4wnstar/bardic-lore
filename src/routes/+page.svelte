@@ -6,7 +6,7 @@
     import LeftSidebar from '$lib/LeftSidebar.svelte'
     import type { Track } from '$lib/types'
     import {
-        currentSong,
+        currentTrack,
         TRACKS_FILENAME,
         TRACKS_SETTING
     } from '$lib/stores.svelte'
@@ -14,6 +14,7 @@
     import { getContext, onDestroy, onMount } from 'svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { type UnlistenFn, listen } from '@tauri-apps/api/event'
+    import { BOT_ERROR, UPDATE_TRACK } from '$lib/events'
 
     let tracks: Track[] = $state([])
 
@@ -28,7 +29,7 @@
         const toast: ToastContext = getContext('toast')
 
         // Setup all the global event listeners
-        let unlisten1 = await listen<string>('bot-error', (ev) => {
+        let unlisten1 = await listen<string>(BOT_ERROR, (ev) => {
             toast.create({
                 title: 'Error',
                 description: ev.payload,
@@ -37,15 +38,11 @@
         })
         unlisten.push(unlisten1)
 
-        let unlisten2 = await listen<string>('resumed-playback', () => {
-            currentSong.playing = true
+        let unlisten2 = await listen<any>(UPDATE_TRACK, (ev) => {
+            currentTrack.playing = ev.payload['playing'] ?? currentTrack.playing
+            currentTrack.looping = ev.payload['looping'] ?? currentTrack.looping
         })
         unlisten.push(unlisten2)
-
-        let unlisten3 = await listen<string>('stopped-playback', () => {
-            currentSong.playing = false
-        })
-        unlisten.push(unlisten3)
     })
 
     onDestroy(() => {

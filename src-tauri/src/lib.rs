@@ -1,14 +1,11 @@
-// mod control;
 mod discord;
+mod events;
 mod files;
-mod settings;
-
-use std::sync::Mutex;
+mod stores;
 
 use discord::IsSerenityClientOn;
-use files::TrackList;
 use serde_json::json;
-use settings::{DISCORD_FILENAME, GUILDS_SETTING};
+use stores::{DISCORD_FILENAME, GUILDS_SETTING};
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, thiserror::Error)]
@@ -54,11 +51,9 @@ pub async fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(Mutex::new(TrackList::default()))
         .manage(tokio::sync::Mutex::new(IsSerenityClientOn(false)))
         .invoke_handler(tauri::generate_handler![
             files::add_audio_sources,
-            files::get_audio_sources,
             files::update_audio_source,
             files::delete_audio_source,
             files::refresh_audio_files,

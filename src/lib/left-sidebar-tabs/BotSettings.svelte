@@ -13,6 +13,11 @@
     } from '$lib/stores.svelte'
     import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
+    import {
+        JOIN_VOICE_CHANNEL,
+        LEAVE_VOICE_CHANNEL,
+        UPDATED_GUILDS
+    } from '$lib/events'
 
     const toast: ToastContext = getContext('toast')
 
@@ -102,10 +107,10 @@
             if (!activeGuild) {
                 return
             }
-            await emit('leave-voice-channels', { guildId: activeGuild.id })
+            await emit(LEAVE_VOICE_CHANNEL, { guildId: activeGuild.id })
             localGuild.voice_channels[0].active = true
         } else {
-            await emit('join-voice-channel', {
+            await emit(JOIN_VOICE_CHANNEL, {
                 guildId: guild.id,
                 channelId: channel.id
             })
@@ -135,7 +140,7 @@
         isBotConnected()
         refreshServers(false)
         getBotToken()
-        unlisten = await listen<undefined>('updated-guilds', () =>
+        unlisten = await listen<undefined>(UPDATED_GUILDS, () =>
             refreshServers(false)
         )
     })

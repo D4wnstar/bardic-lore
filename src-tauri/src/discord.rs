@@ -11,13 +11,20 @@ use serenity::{
 };
 
 use reqwest::Client as HttpClient;
-use songbird::{tracks::Track, EventContext, SerenityInit, Songbird};
+use songbird::{
+    tracks::{LoopState, Track},
+    SerenityInit, Songbird,
+};
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
-    settings::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
+    events::{
+        BOT_ERROR, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK,
+        QUEUE_TRACK, RESUME_PLAYBACK, SKIP_TRACK, UPDATED_GUILDS, UPDATE_TRACK,
+    },
+    stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
 };
 
@@ -69,102 +76,62 @@ impl EventHandler for Handler {
         let manager = songbird::get(&ctx).await.unwrap();
 
         // Each callback needs to have ownership of whatever it uses since it outlives this functions
+        // The need for a tokio::spawn to permit await calls causes annoying double-cloning of Arcs
+        // because they need to be moved twice (first in the callback, then in the tokio async task)
+        // Performance isn't a concern for these callbacks, but it's just kind of ugly
         let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
-        self.app.listen("join-voice-channel", move |ev| {
-            // The need for a tokio::spawn to allow for async causes annoying double-cloning of Arcs
-            // because they need to be moved twice (first in the callback, then in the tokio async task)
-            // Performance isn't a concern for these callbacks, but it's just kind of ugly
+        self.app.listen(JOIN_VOICE_CHANNEL, move |ev| {
             let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
-                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let guild_id = get_guild_id(&payload, &ctx, &app);
-                if let None = guild_id {
-                    print_emit_error("bot-error", "Guild ID not in payload", &app);
-                    return;
-                }
-                let guild_id = guild_id.unwrap();
-
-                let channel_id = get_channel_id(&guild_id, &payload, &ctx, &app);
-                if let None = channel_id {
-                    print_emit_error("bot-error", "Channel ID not in payload", &app);
-                    return;
-                }
-                let channel_id = channel_id.unwrap();
-
-                if let Err(err) = manager.join(guild_id, channel_id).await {
-                    print_emit_error("bot-error", &format!("Failed to join channel. {err}"), &app);
-                }
+                join_voice_channel(ev, &ctx, &manager, &app).await;
             });
         });
 
         let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
-        self.app.listen("leave-voice-channels", move |ev| {
+        self.app.listen(LEAVE_VOICE_CHANNEL, move |ev| {
             let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
-                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let guild_id = get_guild_id(&payload, &ctx, &app);
-                if let None = guild_id {
-                    print_emit_error("bot-error", "Guild ID not in payload", &app);
-                    return;
-                }
-                let guild_id = guild_id.unwrap();
-                let has_handler = manager.get(guild_id).is_some();
-                if has_handler {
-                    manager
-                        .remove(guild_id)
-                        .await
-                        .expect("Failed to leave channel");
-                    app.emit("stopped-playback", ()).unwrap();
-                } else {
-                    print_emit_error("bot-error", "Bot not in a voice channel", &app);
-                }
+                leave_voice_channel(ev, &ctx, &manager, &app).await;
             });
         });
 
         let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
-        self.app.listen("play-track", move |ev| {
+        self.app.listen(QUEUE_TRACK, move |ev| {
             let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
-                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let guild_id = get_guild_id(&payload, &ctx, &app);
-                let filepath = payload.get("filepath").cloned();
-                if let None = guild_id {
-                    print_emit_error("bot-error", "Guild ID not in payload", &app);
-                    return;
-                }
-                if let None = filepath {
-                    print_emit_error("bot-error", "Filepath not in payload", &app);
-                    return;
-                }
-
-                if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
-                    let mut handler = handler_lock.lock().await;
-                    let track: Track = songbird::input::File::new(filepath.unwrap()).into();
-                    let _handle = handler.play_only(track);
-                    app.emit("resumed-playback", ()).unwrap();
-                } else {
-                    print_emit_error("bot-error", "Not in a voice channel", &app);
-                }
+                queue_track(ev, &ctx, &manager, &app).await;
             });
         });
 
         let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
-        self.app.listen("pause-playback", move |ev| {
+        self.app.listen(RESUME_PLAYBACK, move |ev| {
             let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
-                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let guild_id = get_guild_id(&payload, &ctx, &app);
-                if let None = guild_id {
-                    print_emit_error("bot-error", "Guild ID not in payload", &app);
-                    return;
-                }
-                if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
-                    let mut handler = handler_lock.lock().await;
-                    handler.stop();
-                    app.emit("stopped-playback", ()).unwrap();
-                } else {
-                    print_emit_error("bot-error", "Not in a voice channel", &app);
-                }
+                queue_action(QueueAction::Resume, ev, &ctx, &manager, &app).await;
+            });
+        });
+
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        self.app.listen(PAUSE_PLAYBACK, move |ev| {
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            tokio::spawn(async move {
+                queue_action(QueueAction::Pause, ev, &ctx, &manager, &app).await;
+            });
+        });
+
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        self.app.listen(SKIP_TRACK, move |ev| {
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            tokio::spawn(async move {
+                queue_action(QueueAction::Skip, ev, &ctx, &manager, &app).await;
+            });
+        });
+
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        self.app.listen(LOOP_TRACK, move |ev| {
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            tokio::spawn(async move {
+                queue_action(QueueAction::Loop, ev, &ctx, &manager, &app).await;
             });
         });
     }
@@ -197,7 +164,7 @@ impl EventHandler for Handler {
             });
             if let Ok(value) = serde_json::to_value(guilds) {
                 store.set(GUILDS_SETTING, value);
-                self.app.emit("updated-guilds", ()).unwrap_or_else(|why| {
+                self.app.emit(UPDATED_GUILDS, ()).unwrap_or_else(|why| {
                         eprintln!("Failed to send updated-guilds event. Please refresh guilds manually. Reason: {why}")
                     });
             }
@@ -249,6 +216,187 @@ pub async fn is_bot_connected(app: AppHandle) -> bool {
     return client_exists_mutex.lock().await.0;
 }
 
+/* BOT EVENT CALLBACKS */
+async fn join_voice_channel(
+    ev: tauri::Event,
+    ctx: &Arc<Context>,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+) {
+    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+    let guild_id = get_guild_id(&payload, &ctx, &app);
+    if let None = guild_id {
+        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
+        return;
+    }
+    let guild_id = guild_id.unwrap();
+
+    let channel_id = get_channel_id(&guild_id, &payload, &ctx, &app);
+    if let None = channel_id {
+        print_emit_error(BOT_ERROR, "Channel ID not in payload", &app);
+        return;
+    }
+    let channel_id = channel_id.unwrap();
+
+    if let Err(err) = manager.join(guild_id, channel_id).await {
+        print_emit_error(BOT_ERROR, &format!("Failed to join channel. {err}"), &app);
+    };
+}
+
+async fn leave_voice_channel(
+    ev: tauri::Event,
+    ctx: &Arc<Context>,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+) {
+    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+    let guild_id = get_guild_id(&payload, &ctx, &app);
+    if let None = guild_id {
+        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
+        return;
+    }
+    let guild_id = guild_id.unwrap();
+    let has_handler = manager.get(guild_id).is_some();
+    if has_handler {
+        manager
+            .remove(guild_id)
+            .await
+            .expect("Failed to leave channel");
+        app.emit(UPDATE_TRACK, json!({ "playing": false })).unwrap();
+    } else {
+        print_emit_error(BOT_ERROR, "Bot not in a voice channel", &app);
+    };
+}
+
+async fn queue_track(
+    ev: tauri::Event,
+    ctx: &Arc<Context>,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+) {
+    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+    let guild_id = get_guild_id(&payload, &ctx, &app);
+    let filepath = payload.get("filepath").cloned();
+    if let None = guild_id {
+        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
+        return;
+    }
+    if let None = filepath {
+        print_emit_error(BOT_ERROR, "Filepath not in payload", &app);
+        return;
+    }
+
+    if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
+        let mut handler = handler_lock.lock().await;
+        let track: Track = songbird::input::File::new(filepath.unwrap()).into();
+        let _handle = handler.enqueue(track).await;
+        app.emit(UPDATE_TRACK, json!({ "playing": true })).unwrap();
+    } else {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+    };
+}
+
+enum QueueAction {
+    Resume,
+    Pause,
+    Skip,
+    Stop,
+    Loop,
+}
+
+async fn queue_action(
+    action: QueueAction,
+    ev: tauri::Event,
+    ctx: &Arc<Context>,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+) {
+    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+    let guild_id = get_guild_id(&payload, &ctx, &app);
+    if let None = guild_id {
+        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
+        return;
+    }
+
+    let maybe_handler = manager.get(guild_id.unwrap());
+    if let None = maybe_handler {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        return;
+    };
+
+    let lock = maybe_handler.unwrap();
+    let handler = lock.lock().await;
+    let queue = handler.queue();
+
+    let msg_str = match action {
+        QueueAction::Resume => "resume",
+        QueueAction::Pause => "pause",
+        QueueAction::Skip => "skip",
+        QueueAction::Stop => "stop",
+        QueueAction::Loop => "activate loop for",
+    };
+    let response_event = match action {
+        QueueAction::Resume => Some(UPDATE_TRACK),
+        QueueAction::Pause => Some(UPDATE_TRACK),
+        QueueAction::Skip => None,
+        QueueAction::Stop => todo!(),
+        QueueAction::Loop => Some(UPDATE_TRACK),
+    };
+
+    let result = match action {
+        QueueAction::Resume => Some((queue.resume(), json!({ "playing": true }))),
+        QueueAction::Pause => Some((queue.pause(), json!({ "playing": false }))),
+        QueueAction::Skip => Some((queue.skip(), json!({}))),
+        QueueAction::Stop => {
+            queue.stop();
+            None
+        }
+        QueueAction::Loop => {
+            if let Some(track) = queue.current() {
+                let maybe_info = track.get_info().await;
+                if let Err(err) = maybe_info {
+                    print_emit_error(
+                        BOT_ERROR,
+                        &format!("Failed to get info for current track. {err}"),
+                        app,
+                    );
+                    return;
+                };
+                let new_state;
+                let res = match maybe_info.unwrap().loops {
+                    LoopState::Infinite => {
+                        new_state = false;
+                        track.disable_loop()
+                    }
+                    LoopState::Finite(_) => {
+                        new_state = true;
+                        track.enable_loop()
+                    }
+                };
+                Some((res, json!({ "looping": new_state })))
+            } else {
+                None
+            }
+        }
+    };
+
+    match result {
+        Some((Err(err), _)) => {
+            print_emit_error(
+                BOT_ERROR,
+                &format!("Failed to {msg_str} track. {err}"),
+                &app,
+            );
+        }
+        Some((Ok(_), payload)) => {
+            if let Some(event) = response_event {
+                app.emit(event, payload).unwrap();
+            }
+        }
+        None => (),
+    }
+}
+
 /* CONVENIENCE FUNCTIONS */
 /// Convenience function to turn a u64 guild ID from a payload into a proper GuildId object.
 fn get_guild_id(
@@ -265,7 +413,7 @@ fn get_guild_id(
             .unwrap()
             .parse::<u64>()
             .or_else(|err| {
-                print_emit_error("bot-error", "Failed to parse Guild ID to u64", app);
+                print_emit_error(BOT_ERROR, "Failed to parse Guild ID to u64", app);
                 return Err(err);
             })
             .ok();
@@ -296,7 +444,7 @@ fn get_channel_id(
             .unwrap()
             .parse::<u64>()
             .or_else(|err| {
-                print_emit_error("bot-error", "Failed to parse Channel ID to u64", app);
+                print_emit_error(BOT_ERROR, "Failed to parse Channel ID to u64", app);
                 return Err(err);
             })
             .ok();

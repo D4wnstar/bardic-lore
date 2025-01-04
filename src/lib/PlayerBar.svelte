@@ -7,42 +7,61 @@
         SkipBack,
         SkipForward
     } from 'lucide-svelte'
-    import { globalGuildId, currentSong } from './stores.svelte'
+    import { globalGuildId, currentTrack } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
+    import {
+        LOOP_TRACK,
+        PAUSE_PLAYBACK,
+        RESUME_PLAYBACK,
+        SKIP_TRACK
+    } from './events'
+
+    const activeColor = '#2161b8'
 </script>
 
 <div class="preset-outlined-surface-500 mt-2 h-24 rounded-md p-2 flex-none">
     <div class="flex justify-center gap-2">
-        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
-            ><Shuffle /></button
+        <button
+            class="btn-icon rounded-none hover:preset-filled-surface-500"
+            disabled><Shuffle /></button
         >
-        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
-            ><SkipBack /></button
+        <button
+            class="btn-icon rounded-none hover:preset-filled-surface-500"
+            disabled><SkipBack /></button
         >
-        {#if currentSong.playing}
+        {#if currentTrack.playing}
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-500"
                 onclick={async () => {
-                    await emit('pause-playback', { guildId: globalGuildId.id })
+                    await emit(PAUSE_PLAYBACK, { guildId: globalGuildId.id })
                 }}
             >
-                <Pause color="#2161b8" size="32" /></button
+                <Pause color={activeColor} size="32" /></button
             >
         {:else}
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-500"
                 onclick={async () => {
-                    await emit('start-playback', { guildId: globalGuildId.id })
+                    await emit(RESUME_PLAYBACK, { guildId: globalGuildId.id })
                 }}
             >
-                <Play color="#2161b8" size="32" /></button
+                <Play color={activeColor} size="32" /></button
             >
         {/if}
-        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
-            ><SkipForward /></button
+        <button
+            class="btn-icon rounded-none hover:preset-filled-surface-500"
+            onclick={async () => {
+                await emit(SKIP_TRACK, { guildId: globalGuildId.id })
+            }}><SkipForward /></button
         >
-        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
-            ><Repeat /></button
+        <button
+            class="btn-icon rounded-none hover:preset-filled-surface-500"
+            onclick={async () => {
+                await emit(LOOP_TRACK, { guildId: globalGuildId.id })
+            }}
+            ><Repeat
+                color={currentTrack.looping ? activeColor : '#ffffff'}
+            /></button
         >
     </div>
 </div>

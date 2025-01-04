@@ -2,6 +2,7 @@
     import { globalGuildId } from './stores.svelte'
     import type { Track } from './types'
     import { emit } from '@tauri-apps/api/event'
+    import { QUEUE_TRACK } from '$lib/events'
 
     interface Props {
         track: Track
@@ -11,7 +12,7 @@
 
     async function handleClick() {
         if (globalGuildId.id !== 0) {
-            await emit('play-track', {
+            await emit(QUEUE_TRACK, {
                 guildId: `${globalGuildId.id}`,
                 filepath: track.path
             })
