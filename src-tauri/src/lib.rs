@@ -31,6 +31,8 @@ pub enum Error {
     SerenityClientAlreadyExists(),
     #[error(transparent)]
     SerenityError(#[from] serenity::Error),
+    #[error("The payload was malformed. {0}")]
+    BadPayload(String),
 }
 
 impl serde::Serialize for Error {
@@ -45,6 +47,8 @@ impl serde::Serialize for Error {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[tokio::main]
 pub async fn run() {
+    tracing_subscriber::fmt::init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())

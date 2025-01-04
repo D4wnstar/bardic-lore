@@ -5,17 +5,54 @@
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
     import type { Track } from '$lib/types'
-    import { TRACKS_FILENAME, TRACKS_SETTING } from '$lib/store'
+    import {
+        currentSong,
+        TRACKS_FILENAME,
+        TRACKS_SETTING
+    } from '$lib/stores.svelte'
     import { load } from '@tauri-apps/plugin-store'
-    import { onMount } from 'svelte'
+    import { getContext, onDestroy, onMount } from 'svelte'
+    import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
+    import { type UnlistenFn, listen } from '@tauri-apps/api/event'
+
+    let tracks: Track[] = $state([])
 
     async function getTracks() {
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         tracks = (await store.get<Track[]>(TRACKS_SETTING)) ?? []
     }
 
-    let tracks: Track[] = $state([])
-    onMount(getTracks)
+    let unlisten: UnlistenFn[] = []
+    onMount(async () => {
+        getTracks()
+        const toast: ToastContext = getContext('toast')
+
+        // Setup all the global event listeners
+        let unlisten1 = await listen<string>('bot-error', (ev) => {
+            toast.create({
+                title: 'Error',
+                description: ev.payload,
+                type: 'error'
+            })
+        })
+        unlisten.push(unlisten1)
+
+        let unlisten2 = await listen<string>('resumed-playback', () => {
+            currentSong.playing = true
+        })
+        unlisten.push(unlisten2)
+
+        let unlisten3 = await listen<string>('stopped-playback', () => {
+            currentSong.playing = false
+        })
+        unlisten.push(unlisten3)
+    })
+
+    onDestroy(() => {
+        for (const unlistenFn of unlisten) {
+            unlistenFn()
+        }
+    })
 </script>
 
 <div class="grid grid-cols-[auto_1fr] h-screen">
@@ -35,7 +72,7 @@
                 </header>
                 <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
                     {#each tracks as track}
-                        <SongBox title={track.title} tags={track.album} />
+                        <SongBox {track} />
                     {:else}
                         <div class="type-scale-5">No songs!</div>
                     {/each}

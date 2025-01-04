@@ -6,13 +6,12 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::{
-    all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId, Message},
+    all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId},
     async_trait,
-    prelude::TypeMapKey,
 };
 
 use reqwest::Client as HttpClient;
-use songbird::SerenityInit;
+use songbird::{tracks::Track, EventContext, SerenityInit, Songbird};
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Mutex as AsyncMutex;
@@ -24,12 +23,6 @@ use crate::{
 
 /// Wrapper struct to check if a serenity client already exists
 pub struct IsSerenityClientOn(pub bool);
-
-pub struct HttpKey;
-
-impl TypeMapKey for HttpKey {
-    type Value = HttpClient;
-}
 
 #[derive(Serialize, Deserialize, Debug, Eq, Hash)]
 struct GuildSlug {
@@ -59,106 +52,11 @@ impl PartialEq for VoiceChannelSlug {
 
 pub struct Handler {
     app: AppHandle,
+    http_client: HttpClient,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {
-        println!("Message: {}", msg.content);
-
-        let http = ctx.http.clone();
-
-        if msg.content == "!ping" {
-            if let Err(why) = msg.channel_id.say(&http, "Pong!").await {
-                eprintln!("Error sending message: {why:?}");
-            }
-        } else if msg.content.starts_with("!join") {
-            // let guild_id = match msg.guild_id {
-            //     Some(id) => id,
-            //     None => {
-            //         if let Err(e) = msg
-            //             .channel_id
-            //             .say(&http, "This command can only be used in a server")
-            //             .await
-            //         {
-            //             eprintln!("Error sending message: {e:?}");
-            //         }
-            //         return;
-            //     }
-            // };
-
-            // let channel_id = match msg.content.split_whitespace().nth(1) {
-            //     Some(id) => match id.parse::<u64>() {
-            //         Ok(id) => id,
-            //         Err(e) => {
-            //             if let Err(e) = msg
-            //                 .channel_id
-            //                 .say(&http, format!("Invalid channel ID: {}", e))
-            //                 .await
-            //             {
-            //                 eprintln!("Error sending message: {e:?}");
-            //             }
-            //             return;
-            //         }
-            //     },
-            //     None => {
-            //         if let Err(e) = msg
-            //             .channel_id
-            //             .say(&http, "Please specify a channel ID")
-            //             .await
-            //         {
-            //             eprintln!("Error sending message: {e:?}");
-            //         }
-            //         return;
-            //     }
-            // };
-
-            // let manager = songbird::get(&ctx).await.unwrap();
-
-            // let _handler = manager.join(guild_id, channel_id).await;
-
-            // if let Err(e) = msg.channel_id.say(&http, "Joined the voice channel").await {
-            //     eprintln!("Error sending message: {e:?}");
-            // }
-        } else if msg.content == "!channels" {
-            let guild_id = match msg.guild_id {
-                Some(id) => id,
-                None => {
-                    if let Err(e) = msg
-                        .channel_id
-                        .say(&http, "This command can only be used in a server")
-                        .await
-                    {
-                        eprintln!("Error sending message: {e:?}");
-                    }
-                    return;
-                }
-            };
-
-            let guild = match ctx.cache.guild(guild_id) {
-                Some(guild) => guild.clone(), // Clone the guild to ensure it is Send
-                None => {
-                    eprintln!("Failed to fetch guild information");
-                    return;
-                }
-            };
-
-            let mut channels_info = String::new();
-            for channel in guild.channels.iter() {
-                if channel.1.kind == ChannelType::Voice {
-                    channels_info.push_str(&format!(
-                        "Channel ID: {}, Name: {}\n",
-                        channel.0, channel.1.name
-                    ));
-                }
-            }
-
-            if let Err(e) = msg.channel_id.say(&http, channels_info).await {
-                eprintln!("Error sending message: {e:?}");
-            }
-        }
-    }
-
     async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
         // serenity has no API to tell the bot to do something from code,
         // it can only handle Gateway events sent by Discord, such as chat messages
@@ -170,59 +68,102 @@ impl EventHandler for Handler {
         let ctx = Arc::new(ctx);
         let manager = songbird::get(&ctx).await.unwrap();
 
-        // Each callback needs to have ownership of whatever it needs since it outlives this functions
-        let ctx1 = Arc::clone(&ctx);
-        let manager1 = Arc::clone(&manager);
+        // Each callback needs to have ownership of whatever it uses since it outlives this functions
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
         self.app.listen("join-voice-channel", move |ev| {
             // The need for a tokio::spawn to allow for async causes annoying double-cloning of Arcs
             // because they need to be moved twice (first in the callback, then in the tokio async task)
             // Performance isn't a concern for these callbacks, but it's just kind of ugly
-            let ctx = Arc::clone(&ctx1);
-            let manager = Arc::clone(&manager1);
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
                 let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let maybe_guild_id = payload.get("guildId").and_then(|id| id.parse::<u64>().ok());
-                let maybe_channel_id = payload
-                    .get("channelId")
-                    .and_then(|id| id.parse::<u64>().ok());
-                if let Some(guild_id) = maybe_guild_id {
-                    if let Some(channel_id) = maybe_channel_id {
-                        // The frontend only holds the id number, we need the whole object
-                        let (gid, cid) = {
-                            let guild = ctx.cache.guild(guild_id).unwrap();
-                            let channel =
-                                guild.channels.iter().find(|c| *c.0 == channel_id).unwrap();
-                            (guild.id, channel.0.clone())
-                        };
+                let guild_id = get_guild_id(&payload, &ctx, &app);
+                if let None = guild_id {
+                    print_emit_error("bot-error", "Guild ID not in payload", &app);
+                    return;
+                }
+                let guild_id = guild_id.unwrap();
 
-                        manager
-                            .join(gid, cid)
-                            .await
-                            .expect("Failed to join channel");
-                    };
+                let channel_id = get_channel_id(&guild_id, &payload, &ctx, &app);
+                if let None = channel_id {
+                    print_emit_error("bot-error", "Channel ID not in payload", &app);
+                    return;
+                }
+                let channel_id = channel_id.unwrap();
+
+                if let Err(err) = manager.join(guild_id, channel_id).await {
+                    print_emit_error("bot-error", &format!("Failed to join channel. {err}"), &app);
                 }
             });
         });
 
-        let ctx2 = Arc::clone(&ctx);
-        let manager2 = Arc::clone(&manager);
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
         self.app.listen("leave-voice-channels", move |ev| {
-            let ctx = Arc::clone(&ctx2);
-            let manager = Arc::clone(&manager2);
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
             tokio::spawn(async move {
                 let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-                let maybe_guild_id = payload.get("guildId").and_then(|id| id.parse::<u64>().ok());
-                if let Some(guild_id) = maybe_guild_id {
-                    let gid = {
-                        let guild = ctx.cache.guild(guild_id).unwrap();
-                        guild.id
-                    };
-                    let has_handler = manager.get(gid).is_some();
-                    if has_handler {
-                        manager.remove(gid).await.expect("Failed to leave channel");
-                    } else {
-                        println!("Bot not in a voice channel")
-                    }
+                let guild_id = get_guild_id(&payload, &ctx, &app);
+                if let None = guild_id {
+                    print_emit_error("bot-error", "Guild ID not in payload", &app);
+                    return;
+                }
+                let guild_id = guild_id.unwrap();
+                let has_handler = manager.get(guild_id).is_some();
+                if has_handler {
+                    manager
+                        .remove(guild_id)
+                        .await
+                        .expect("Failed to leave channel");
+                    app.emit("stopped-playback", ()).unwrap();
+                } else {
+                    print_emit_error("bot-error", "Bot not in a voice channel", &app);
+                }
+            });
+        });
+
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        self.app.listen("play-track", move |ev| {
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            tokio::spawn(async move {
+                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+                let guild_id = get_guild_id(&payload, &ctx, &app);
+                let filepath = payload.get("filepath").cloned();
+                if let None = guild_id {
+                    print_emit_error("bot-error", "Guild ID not in payload", &app);
+                    return;
+                }
+                if let None = filepath {
+                    print_emit_error("bot-error", "Filepath not in payload", &app);
+                    return;
+                }
+
+                if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
+                    let mut handler = handler_lock.lock().await;
+                    let track: Track = songbird::input::File::new(filepath.unwrap()).into();
+                    let _handle = handler.play_only(track);
+                    app.emit("resumed-playback", ()).unwrap();
+                } else {
+                    print_emit_error("bot-error", "Not in a voice channel", &app);
+                }
+            });
+        });
+
+        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        self.app.listen("pause-playback", move |ev| {
+            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            tokio::spawn(async move {
+                let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
+                let guild_id = get_guild_id(&payload, &ctx, &app);
+                if let None = guild_id {
+                    print_emit_error("bot-error", "Guild ID not in payload", &app);
+                    return;
+                }
+                if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
+                    let mut handler = handler_lock.lock().await;
+                    handler.stop();
+                    app.emit("stopped-playback", ()).unwrap();
+                } else {
+                    print_emit_error("bot-error", "Not in a voice channel", &app);
                 }
             });
         });
@@ -268,38 +209,9 @@ impl EventHandler for Handler {
     }
 
     // TODO: Also update on guild delete
-
-    // async fn voice_state_update(&self, ctx: Context, old: Option<VoiceState>, new: VoiceState) {
-    //     if let Some(old) = old {
-    //         if old.guild_id != new.guild_id {
-    //             return;
-    //         }
-    //     }
-
-    //     let guild_id = match new.guild_id {
-    //         Some(id) => id,
-    //         None => return,
-    //     };
-
-    //     let channel_id = match new.channel_id {
-    //         Some(id) => id,
-    //         None => return,
-    //     };
-
-    //     let manager = songbird::get(&ctx).await.unwrap();
-
-    //     if let Some(handler_lock) = manager.get(guild_id) {
-    //         let mut handler = handler_lock.lock().await;
-    //         if handler.queue().is_empty() {
-    //             handler
-    //                 .play_source(ffmpeg(channel_id.to_string()).await.unwrap())
-    //                 .await
-    //                 .unwrap();
-    //         }
-    //     }
-    // }
 }
 
+/* TAURI COMMANDS */
 #[tauri::command]
 pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
     let client_exists_mutex = app.state::<AsyncMutex<IsSerenityClientOn>>();
@@ -312,15 +224,13 @@ pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
     let store = app.store(SETTINGS_FILENAME)?;
     let value = store.get(BOT_TOKEN_SETTING).unwrap_or("".into());
     let token: String = serde_json::from_value(value)?;
-    let mut ds_client = serenity::Client::builder(
-        token,
-        GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT,
-    )
-    .event_handler(Handler { app: app.clone() })
-    .register_songbird()
-    // An HTTP client for yt-dlp to operate
-    .type_map_insert::<HttpKey>(reqwest::Client::new())
-    .await?;
+    let mut ds_client = serenity::Client::builder(token, GatewayIntents::non_privileged())
+        .event_handler(Handler {
+            app: app.clone(),
+            http_client: reqwest::Client::new(),
+        })
+        .register_songbird()
+        .await?;
 
     tokio::spawn(async move {
         if let Err(why) = ds_client.start().await {
@@ -337,4 +247,89 @@ pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
 pub async fn is_bot_connected(app: AppHandle) -> bool {
     let client_exists_mutex = app.state::<AsyncMutex<IsSerenityClientOn>>();
     return client_exists_mutex.lock().await.0;
+}
+
+/* CONVENIENCE FUNCTIONS */
+/// Convenience function to turn a u64 guild ID from a payload into a proper GuildId object.
+fn get_guild_id(
+    payload: &HashMap<String, String>,
+    ctx: &Context,
+    app: &AppHandle,
+) -> Option<GuildId> {
+    let maybe_guild_id = payload.get("guildId");
+    if let None = maybe_guild_id {
+        return None;
+    }
+    let guild_id = {
+        let gid = maybe_guild_id
+            .unwrap()
+            .parse::<u64>()
+            .or_else(|err| {
+                print_emit_error("bot-error", "Failed to parse Guild ID to u64", app);
+                return Err(err);
+            })
+            .ok();
+        if let None = gid {
+            return None;
+        }
+
+        let guild = ctx.cache.guild(gid.unwrap()).unwrap();
+        guild.id
+    };
+
+    return Some(guild_id);
+}
+
+/// Convenience function to turn a u64 channel ID from a payload into a proper ChannelId object.
+fn get_channel_id(
+    guild_id: &GuildId,
+    payload: &HashMap<String, String>,
+    ctx: &Context,
+    app: &AppHandle,
+) -> Option<ChannelId> {
+    let maybe_channel_id = payload.get("channelId");
+    if let None = maybe_channel_id {
+        return None;
+    }
+    let channel_id = {
+        let cid = maybe_channel_id
+            .unwrap()
+            .parse::<u64>()
+            .or_else(|err| {
+                print_emit_error("bot-error", "Failed to parse Channel ID to u64", app);
+                return Err(err);
+            })
+            .ok();
+        if let None = cid {
+            return None;
+        }
+
+        let guild = ctx.cache.guild(guild_id).unwrap();
+        let channel = guild
+            .channels
+            .iter()
+            .find(|c| *c.0 == cid.unwrap())
+            .unwrap();
+        channel.0.clone()
+    };
+
+    return Some(channel_id);
+}
+
+/// Print an error to stderr and emit a Tauri event with the same message as the payload.
+fn print_emit_error(ev_name: &str, error_msg: &str, app: &AppHandle) {
+    eprintln!("{error_msg}");
+    app.emit(ev_name, format!("{error_msg}")).unwrap();
+}
+
+/// Clone some references to have them moved into callbacks/tasks.
+fn clone_boilerplate(
+    ctx: &Arc<Context>,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+) -> (Arc<Context>, Arc<Songbird>, AppHandle) {
+    let ctx1 = Arc::clone(ctx);
+    let manager1 = Arc::clone(manager);
+    let app1 = app.clone();
+    return (ctx1, manager1, app1);
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
     import '../app.css'
-    import type { Snippet } from 'svelte'
+    import { type Snippet } from 'svelte'
     import type { LayoutData } from './$types'
     import { ToastProvider } from '@skeletonlabs/skeleton-svelte'
 

@@ -6,22 +6,24 @@
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         BOT_TOKEN_SETTING,
+        globalGuildId,
         DISCORD_FILENAME,
         GUILDS_SETTING,
         SETTINGS_FILENAME
-    } from '$lib/store'
+    } from '$lib/stores.svelte'
     import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
 
     const toast: ToastContext = getContext('toast')
 
     let guilds: GuildSlug[] = $state([])
-    let botToken = $state('')
     let localGuild: GuildSlug = $state({
         id: 0,
         name: 'Offline Player',
         voice_channels: [{ id: 0, name: 'Offline', active: false }]
     })
+
+    let botToken = $state('')
     let botConnected = $state(false)
 
     async function createClient() {
@@ -110,6 +112,9 @@
             localGuild.voice_channels[0].active = false
         }
 
+        // Update the guild ID store
+        globalGuildId.id = guild.id
+
         // Update voice channels for the UI
         for (const currGuild of guilds) {
             for (const vchan of currGuild.voice_channels) {
@@ -159,10 +164,7 @@
 
     <div class="flex w-full gap-2 justify-center py-2">
         {#if botConnected}
-            <button
-                class="btn preset-outlined-primary-400-600"
-                onclick={createClient}
-                disabled
+            <button class="btn preset-outlined-primary-400-600" disabled
                 >Connected!
             </button>
         {:else}

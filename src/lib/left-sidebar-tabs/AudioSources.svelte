@@ -5,7 +5,10 @@
     import { type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { getContext, onMount } from 'svelte'
     import { load } from '@tauri-apps/plugin-store'
-    import { AUDIO_SOURCES_SETTING, SETTINGS_FILENAME } from '$lib/store'
+    import {
+        AUDIO_SOURCES_SETTING,
+        SETTINGS_FILENAME
+    } from '$lib/stores.svelte'
 
     interface Props {
         getTracks: Function
