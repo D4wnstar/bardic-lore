@@ -56,6 +56,9 @@ export const globalGuild = $state({
 export const trackQueue: TrackQueue = $state({
     tracks: []
 })
+export const recentlyPlayed: TrackQueue = $state({
+    tracks: []
+})
 export const playerState: PlayerState = $state({
     playing: false,
     trackProgress: 0,

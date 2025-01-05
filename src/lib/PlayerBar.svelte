@@ -39,14 +39,18 @@
     let fmtProgress = $derived(formatSeconds(playerState.trackProgress))
     let fmtDuration = $derived(formatSeconds(duration))
 
-    let timerId: number
+    // Interval IDs are kept in an array just in case something bugs out
+    // so that it won't overwrite the previous ID and leave an eternal leaked
+    // interval
+    let timerIds: number[] = []
     $effect(() => {
         if (playerState.playing) {
-            timerId = setInterval(() => {
+            const timerId = setInterval(() => {
                 playerState.trackProgress += 1
             }, 1000)
+            timerIds.push(timerId)
         } else {
-            clearInterval(timerId)
+            timerIds.forEach(clearInterval)
         }
     })
 
@@ -73,7 +77,7 @@
         >
         {#if playerState.playing}
             <button
-                class="btn-icon rounded-none hover:preset-filled-surface-100-900"
+                class="btn-icon rounded-none preset-filled-primary-100-900"
                 onclick={async () => {
                     await emit(PAUSE_PLAYBACK, { guildId: globalGuild.id })
                 }}
@@ -82,7 +86,7 @@
             >
         {:else}
             <button
-                class="btn-icon rounded-none hover:preset-filled-surface-100-900"
+                class="btn-icon rounded-none preset-filled-primary-100-900"
                 onclick={async () => {
                     await emit(RESUME_PLAYBACK, { guildId: globalGuild.id })
                 }}
@@ -116,7 +120,7 @@
             value={playerState.trackProgress}
         />
         <p class="type-scale-2 opacity-70">
-            {#if playerState.playing}{fmtDuration}{:else}0:00{/if}
+            {#if trackQueue.tracks[0]}{fmtDuration}{:else}0:00{/if}
         </p>
     </div>
 </div>

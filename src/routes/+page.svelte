@@ -7,6 +7,7 @@
     import type { Track } from '$lib/types'
     import {
         playerState,
+        recentlyPlayed,
         trackQueue,
         TRACKS_FILENAME,
         TRACKS_SETTING
@@ -44,10 +45,15 @@
         })
         unlisten.push(unlisten2)
 
-        let unlisten3 = await listen<any>(TRACK_ENDED, (ev) => {
-            trackQueue.tracks.shift()
-            playerState.playing = false
+        let unlisten3 = await listen<any>(TRACK_ENDED, (_ev) => {
+            let ended_track = trackQueue.tracks.shift()
             playerState.trackProgress = 0
+            if (trackQueue.tracks.length === 0) {
+                playerState.playing = false
+            }
+            if (ended_track) {
+                recentlyPlayed.tracks.unshift(ended_track)
+            }
         })
         unlisten.push(unlisten3)
     })

@@ -1,15 +1,45 @@
 <script lang="ts">
-    import { trackQueue } from '$lib/stores.svelte'
+    import { recentlyPlayed, trackQueue } from '$lib/stores.svelte'
+    import { Tabs } from '@skeletonlabs/skeleton-svelte'
     import QueuedTrack from './QueuedTrack.svelte'
+
+    let tabState = $state('queue')
 </script>
 
-<div class="space-y-2 px-3">
-    {#each trackQueue.tracks as track, idx}
-        {#if idx === 0}
-            <p class="type-scale-3"><strong>You are listening to</strong></p>
-        {:else if idx === 1}
-            <p class="type-scale-3 pt-4"><strong>Up next</strong></p>
-        {/if}
-        <QueuedTrack {track} />
-    {/each}
+<div class="px-3 overflow-auto">
+    <Tabs bind:value={tabState} listJustify="justify-center">
+        {#snippet list()}
+            <Tabs.Control
+                value="queue"
+                labelBase="btn hover:preset-filled-primary-500"
+                >Queue</Tabs.Control
+            >
+            <Tabs.Control
+                value="recent"
+                labelBase="btn hover:preset-filled-primary-500"
+                >Recently played</Tabs.Control
+            >
+        {/snippet}
+        {#snippet content()}
+            <Tabs.Panel value="queue" classes="space-y-2">
+                {#each trackQueue.tracks as track, idx}
+                    {#if idx === 0}
+                        <p class="type-scale-3">
+                            <strong>You are listening to</strong>
+                        </p>
+                    {:else if idx === 1}
+                        <p class="type-scale-3 pt-4">
+                            <strong>Up next</strong>
+                        </p>
+                    {/if}
+                    <QueuedTrack {track} />
+                {/each}
+            </Tabs.Panel>
+            <Tabs.Panel value="recent" classes="space-y-2">
+                {#each recentlyPlayed.tracks as track}
+                    <QueuedTrack {track} />
+                {/each}
+            </Tabs.Panel>
+        {/snippet}
+    </Tabs>
 </div>

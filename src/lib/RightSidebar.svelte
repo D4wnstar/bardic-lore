@@ -7,7 +7,7 @@
 <aside
     class="preset-filled-surface h-full min-w-[300px] max-w-[300px] my-2 border-l-[1px] border-surface-100-900 px-2 flex flex-col overflow-hidden"
 >
-    <div class="flex gap-1 h-12 self-end">
+    <div class="flex gap-1 min-h-12 self-end">
         <button
             class={`btn-icon rounded-none ${tabIndex === 1 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
             onclick={() => (tabIndex = 1)}><ListMusic /></button

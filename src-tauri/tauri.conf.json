@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "bardic-lore",
+        "title": "Bardic Lore",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-features=OverlayScrollbar,msOverlayScrollbarWinStyle,msOverlayScrollbarWinStyleAnimation",
+        "maximized": true
       }
     ],
     "security": {

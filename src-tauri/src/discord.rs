@@ -228,12 +228,12 @@ impl VoiceEventHandler for NotifyTrackEnd {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
         self.app
             .emit(TRACK_ENDED, ())
-            .expect("Couldn't emit TRACK_ENDED event");
+            .expect(&format!("Couldn't emit {TRACK_ENDED} event"));
         return None;
     }
 }
 
-/* BOT EVENT CALLBACKS */
+/* EVENT CALLBACKS */
 async fn join_voice_channel(
     ev: tauri::Event,
     ctx: &Arc<Context>,
@@ -260,6 +260,8 @@ async fn join_voice_channel(
     } else {
         let handler_lock = manager.get(guild_id).unwrap();
         let mut handler = handler_lock.lock().await;
+
+        // Add an event handler to relay TrackEvent::Ends to Tauri
         handler.add_global_event(
             songbird::Event::Track(TrackEvent::End),
             NotifyTrackEnd { app: app.clone() },
@@ -280,8 +282,8 @@ async fn leave_voice_channel(
         return;
     }
     let guild_id = guild_id.unwrap();
-    let has_handler = manager.get(guild_id).is_some();
-    if has_handler {
+    let bot_is_in_a_call = manager.get(guild_id).is_some();
+    if bot_is_in_a_call {
         manager
             .remove(guild_id)
             .await
@@ -316,13 +318,11 @@ async fn queue_track(
 
     if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
         let mut handler = handler_lock.lock().await;
-        let track: Track = songbird::input::File::new(filepath.unwrap()).into();
-        let handle = handler.enqueue(track).await;
+        let mut track: Track = songbird::input::File::new(filepath.unwrap()).into();
         if looping.unwrap().parse::<bool>().unwrap() {
-            handle
-                .enable_loop()
-                .expect("Couldn't enable loop on new track");
+            track = track.loops(LoopState::Infinite);
         }
+        let _handle = handler.enqueue(track).await;
         app.emit(UPDATE_TRACK, json!({ "playing": true })).unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
