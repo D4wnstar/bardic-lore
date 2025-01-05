@@ -30,6 +30,8 @@ pub enum Error {
     SerenityError(#[from] serenity::Error),
     #[error("The payload was malformed. {0}")]
     BadPayload(String),
+    #[error(transparent)]
+    Symphonia(#[from] symphonia::core::errors::Error),
 }
 
 impl serde::Serialize for Error {

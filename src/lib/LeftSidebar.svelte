@@ -13,10 +13,10 @@
 </script>
 
 <aside
-    class="preset-filled-surface h-full w-[300px] border-r-[1px] border-surface-100-900 px-2 flex flex-col overflow-hidden"
+    class="preset-filled-surface h-full my-2 min-w-[300px] max-w-[300px] border-r-[1px] border-surface-100-900 px-2 flex flex-col overflow-hidden"
 >
-    <div class="flex w-full gap-1 py-2 h-12">
-        <button class="btn-icon rounded-none hover:variant-filled-surface"
+    <div class="flex w-full gap-1 h-12">
+        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
             ><PanelRightOpen /></button
         >
         <button

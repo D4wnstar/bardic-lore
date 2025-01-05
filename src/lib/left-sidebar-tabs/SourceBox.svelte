@@ -61,7 +61,7 @@
 </script>
 
 <div
-    class={`preset-filled-surface-100-900 !bg-opacity-50 mx-2 rounded-md border-[1px] border-primary-100-900 px-4 py-2 ${active ? '' : 'opacity-50'}`}
+    class={`preset-filled-surface-100-900 !bg-opacity-50 mx-2 rounded-md border-[1px] border-primary-100-900 !border-opacity-70 px-4 py-2 ${active ? '' : 'opacity-50'}`}
 >
     <div class="flex mb-2">
         <h4 class="type-scale-5 grow text-secondary-700-300">

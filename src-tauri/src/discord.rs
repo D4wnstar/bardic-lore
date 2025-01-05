@@ -13,7 +13,7 @@ use serenity::{
 use reqwest::Client as HttpClient;
 use songbird::{
     tracks::{LoopState, Track},
-    SerenityInit, Songbird,
+    EventContext, EventHandler as VoiceEventHandler, SerenityInit, Songbird, TrackEvent,
 };
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
@@ -22,7 +22,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::{
     events::{
         BOT_ERROR, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK,
-        QUEUE_TRACK, RESUME_PLAYBACK, SKIP_TRACK, UPDATED_GUILDS, UPDATE_TRACK,
+        QUEUE_TRACK, RESUME_PLAYBACK, SKIP_TRACK, TRACK_ENDED, UPDATED_GUILDS, UPDATE_TRACK,
     },
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
@@ -73,7 +73,9 @@ impl EventHandler for Handler {
         // event from anywhere
 
         let ctx = Arc::new(ctx);
-        let manager = songbird::get(&ctx).await.unwrap();
+        let manager = songbird::get(&ctx)
+            .await
+            .expect("Failed to get Songbird manager");
 
         // Each callback needs to have ownership of whatever it uses since it outlives this functions
         // The need for a tokio::spawn to permit await calls causes annoying double-cloning of Arcs
@@ -216,6 +218,21 @@ pub async fn is_bot_connected(app: AppHandle) -> bool {
     return client_exists_mutex.lock().await.0;
 }
 
+/* EVENT HANDLERS */
+struct NotifyTrackEnd {
+    app: AppHandle,
+}
+
+#[async_trait]
+impl VoiceEventHandler for NotifyTrackEnd {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(TRACK_ENDED, ())
+            .expect("Couldn't emit TRACK_ENDED event");
+        return None;
+    }
+}
+
 /* BOT EVENT CALLBACKS */
 async fn join_voice_channel(
     ev: tauri::Event,
@@ -240,6 +257,13 @@ async fn join_voice_channel(
 
     if let Err(err) = manager.join(guild_id, channel_id).await {
         print_emit_error(BOT_ERROR, &format!("Failed to join channel. {err}"), &app);
+    } else {
+        let handler_lock = manager.get(guild_id).unwrap();
+        let mut handler = handler_lock.lock().await;
+        handler.add_global_event(
+            songbird::Event::Track(TrackEvent::End),
+            NotifyTrackEnd { app: app.clone() },
+        );
     };
 }
 
@@ -277,6 +301,7 @@ async fn queue_track(
     let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
     let guild_id = get_guild_id(&payload, &ctx, &app);
     let filepath = payload.get("filepath").cloned();
+    let looping = payload.get("loop");
     if let None = guild_id {
         print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
         return;
@@ -285,11 +310,19 @@ async fn queue_track(
         print_emit_error(BOT_ERROR, "Filepath not in payload", &app);
         return;
     }
+    if let None = looping {
+        print_emit_error(BOT_ERROR, "Looping not in payload. Not looping", &app);
+    }
 
     if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
         let mut handler = handler_lock.lock().await;
         let track: Track = songbird::input::File::new(filepath.unwrap()).into();
-        let _handle = handler.enqueue(track).await;
+        let handle = handler.enqueue(track).await;
+        if looping.unwrap().parse::<bool>().unwrap() {
+            handle
+                .enable_loop()
+                .expect("Couldn't enable loop on new track");
+        }
         app.emit(UPDATE_TRACK, json!({ "playing": true })).unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);

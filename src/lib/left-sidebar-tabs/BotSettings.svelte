@@ -6,10 +6,11 @@
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         BOT_TOKEN_SETTING,
-        globalGuildId,
+        globalGuild,
         DISCORD_FILENAME,
         GUILDS_SETTING,
-        SETTINGS_FILENAME
+        SETTINGS_FILENAME,
+        playerState
     } from '$lib/stores.svelte'
     import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
@@ -25,7 +26,8 @@
     let localGuild: GuildSlug = $state({
         id: 0,
         name: 'Offline Player',
-        voice_channels: [{ id: 0, name: 'Offline', active: false }]
+        voice_channels: [{ id: 0, name: 'Offline', active: false }],
+        offline: true
     })
 
     let botToken = $state('')
@@ -56,6 +58,7 @@
     async function refreshServers(makeToast = false) {
         const store = await load(DISCORD_FILENAME, { autoSave: false })
         guilds = (await store.get<GuildSlug[]>(GUILDS_SETTING)) ?? []
+        guilds.forEach((guild) => (guild.offline = false))
 
         // If no voice channel is active, activate the offline channel
         let localActiveState = true
@@ -97,9 +100,7 @@
         guild: GuildSlug,
         channel: VoiceChannelSlug
     ) {
-        if (channel.id === 0) {
-            // Channel ID 0 is given manually to the "offline channel"
-
+        if (guild.offline) {
             // Find the guild the bot is currently in by findind the active voice channel
             let activeGuild = guilds.find((guild) =>
                 guild.voice_channels.find((ch) => ch.active)
@@ -118,7 +119,8 @@
         }
 
         // Update the guild ID store
-        globalGuildId.id = guild.id
+        globalGuild.id = guild.id
+        playerState.offline = guild.offline
 
         // Update voice channels for the UI
         for (const currGuild of guilds) {

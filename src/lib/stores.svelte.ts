@@ -2,6 +2,8 @@
 // uses to keep things synchronized between the front- and backend and also for
 // persistent storage.
 
+import type { Track } from './types'
+
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
 // please change the Rust file too. The syntax between the two is the same except
@@ -38,14 +40,25 @@ export const DISCORD_FILENAME = 'discord.json'
 export const GUILDS_SETTING = 'guilds'
 
 /* SVELTE STATE */
-export type CurrentTrack = {
-    playing: boolean
-    looping: boolean
+export type TrackQueue = {
+    tracks: Track[]
 }
-export const globalGuildId = $state({
+export type PlayerState = {
+    playing: boolean
+    trackProgress: number
+    looping: boolean
+    offline: boolean
+}
+
+export const globalGuild = $state({
     id: 0
 })
-export const currentTrack: CurrentTrack = $state({
+export const trackQueue: TrackQueue = $state({
+    tracks: []
+})
+export const playerState: PlayerState = $state({
     playing: false,
-    looping: false
+    trackProgress: 0,
+    looping: false,
+    offline: true
 })

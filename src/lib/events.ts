@@ -67,3 +67,8 @@ export const UPDATED_GUILDS = 'updated-guilds'
  * for the data structure. Make sure the types are correct.
  */
 export const UPDATE_TRACK = 'update-track'
+/**
+ * This event notifies the frontend that a track just finished. Essentially a relay
+ * of songbird's `TrackEvent::End`.
+ */
+export const TRACK_ENDED = 'track-ended'

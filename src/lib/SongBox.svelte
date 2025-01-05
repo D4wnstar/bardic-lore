@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { globalGuildId } from './stores.svelte'
+    import { globalGuild, playerState, trackQueue } from './stores.svelte'
     import type { Track } from './types'
     import { emit } from '@tauri-apps/api/event'
     import { QUEUE_TRACK } from '$lib/events'
@@ -11,11 +11,13 @@
     let { track }: Props = $props()
 
     async function handleClick() {
-        if (globalGuildId.id !== 0) {
+        if (globalGuild.id !== 0) {
             await emit(QUEUE_TRACK, {
-                guildId: `${globalGuildId.id}`,
-                filepath: track.path
+                guildId: `${globalGuild.id}`,
+                filepath: track.path,
+                loop: String(playerState.looping)
             })
+            trackQueue.tracks.push(track)
         }
     }
 </script>
@@ -24,6 +26,8 @@
     class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex max-w-60 flex-[12rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
     onclick={handleClick}
 >
-    <h3 class="type-scale-5 text-primary-700-300">{track.title}</h3>
-    <span>{track.artist}</span>
+    <h3 class="type-scale-5 text-primary-800-200">
+        {track.title}
+    </h3>
+    <p class="opacity-50">{track.album}</p>
 </button>

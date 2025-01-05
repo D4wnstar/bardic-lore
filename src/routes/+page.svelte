@@ -1,12 +1,13 @@
 <script lang="ts">
     import { Search } from 'lucide-svelte'
     import SongBox from '$lib/SongBox.svelte'
-    import CurrentlyPlaying from '$lib/CurrentlyPlaying.svelte'
+    import RightSidebar from '$lib/RightSidebar.svelte'
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
     import type { Track } from '$lib/types'
     import {
-        currentTrack,
+        playerState,
+        trackQueue,
         TRACKS_FILENAME,
         TRACKS_SETTING
     } from '$lib/stores.svelte'
@@ -14,7 +15,7 @@
     import { getContext, onDestroy, onMount } from 'svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { type UnlistenFn, listen } from '@tauri-apps/api/event'
-    import { BOT_ERROR, UPDATE_TRACK } from '$lib/events'
+    import { BOT_ERROR, TRACK_ENDED, UPDATE_TRACK } from '$lib/events'
 
     let tracks: Track[] = $state([])
 
@@ -39,10 +40,16 @@
         unlisten.push(unlisten1)
 
         let unlisten2 = await listen<any>(UPDATE_TRACK, (ev) => {
-            currentTrack.playing = ev.payload['playing'] ?? currentTrack.playing
-            currentTrack.looping = ev.payload['looping'] ?? currentTrack.looping
+            playerState.playing = ev.payload['playing'] ?? playerState.playing
         })
         unlisten.push(unlisten2)
+
+        let unlisten3 = await listen<any>(TRACK_ENDED, (ev) => {
+            trackQueue.tracks.shift()
+            playerState.playing = false
+            playerState.trackProgress = 0
+        })
+        unlisten.push(unlisten3)
     })
 
     onDestroy(() => {
@@ -52,9 +59,9 @@
     })
 </script>
 
-<div class="grid grid-cols-[auto_1fr] h-screen">
+<div class="flex h-screen">
     <LeftSidebar {getTracks} />
-    <main class="flex flex-col p-4 min-h-0">
+    <main class="flex flex-col p-4 min-h-0 grow">
         <div class="flex grow min-h-0">
             <div class="flex grow flex-col">
                 <header
@@ -75,9 +82,9 @@
                     {/each}
                 </div>
             </div>
-            <CurrentlyPlaying />
         </div>
 
         <PlayerBar />
     </main>
+    <RightSidebar />
 </div>

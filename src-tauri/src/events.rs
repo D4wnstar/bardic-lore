@@ -46,3 +46,6 @@ pub const UPDATED_GUILDS: &str = "updated-guilds";
 /// fields in the $state based on which keys match. See src/lib/stores.svelte.ts
 /// for the data structure. Make sure the types are correct.
 pub const UPDATE_TRACK: &str = "update-track";
+/// This event notifies the frontend that a track just finished. Essentially a relay
+/// of songbird's `TrackEvent::End`.
+pub const TRACK_ENDED: &str = "track-ended";
