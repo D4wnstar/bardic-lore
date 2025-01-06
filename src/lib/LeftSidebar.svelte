@@ -3,6 +3,7 @@
     import Tags from '$lib/left-sidebar-tabs/Tags.svelte'
     import AudioSources from '$lib/left-sidebar-tabs/AudioSources.svelte'
     import BotSettings from './left-sidebar-tabs/BotSettings.svelte'
+    import AppSettings from './left-sidebar-tabs/AppSettings.svelte'
 
     interface Props {
         getTracks: Function
@@ -42,10 +43,8 @@
     {:else if tabIndex === 2}
         <AudioSources {getTracks} />
     {:else if tabIndex === 3}
-        <!-- Add content for Bot settings here -->
         <BotSettings />
     {:else if tabIndex === 4}
-        <!-- Add content for App settings here -->
-        <span>unimplemented settings</span>
+        <AppSettings />
     {/if}
 </aside>

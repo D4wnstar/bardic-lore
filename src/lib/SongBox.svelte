@@ -40,7 +40,7 @@
 </script>
 
 <button
-    class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex max-w-60 flex-[12rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
+    class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
     onclick={async () => await addToQueue(true)}
     oncontextmenu={handleContextMenu}
 >
