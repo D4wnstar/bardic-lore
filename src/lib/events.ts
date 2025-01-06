@@ -45,6 +45,11 @@ export const SKIP_TRACK = 'skip-track'
  * The payload must include the guild ID.
  */
 export const LOOP_TRACK = 'loop-track'
+/**
+ * This event tells the bot to seek to the given position.
+ * The payload must include the guild ID and the position as a u64.
+ */
+export const SEEK_TRACK = 'seek-track'
 
 /* FROM BOT TO UI */
 /**

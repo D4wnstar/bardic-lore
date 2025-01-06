@@ -7,18 +7,26 @@
         SkipBack,
         SkipForward
     } from 'lucide-svelte'
-    import { globalGuild, trackQueue, playerState } from './stores.svelte'
+    import {
+        globalGuild,
+        trackQueue,
+        playerState,
+        recentlyPlayed
+    } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
     import {
         LOOP_TRACK,
         PAUSE_PLAYBACK,
+        QUEUE_TRACK,
         RESUME_PLAYBACK,
+        SEEK_TRACK,
         SKIP_TRACK
     } from './events'
     import { Progress } from '@skeletonlabs/skeleton-svelte'
-    import { onMount } from 'svelte'
+    import { onDestroy } from 'svelte'
+    import type { Track } from './types'
 
-    export function formatSeconds(seconds: number): string {
+    function formatSeconds(seconds: number): string {
         const hours = Math.floor(seconds / 3600)
         const minutes = Math.floor((seconds % 3600) / 60)
         const remainingSeconds = seconds % 60
@@ -34,25 +42,39 @@
         }
     }
 
-    let duration = $derived(trackQueue.tracks[0]?.duration ?? 100)
-
-    let fmtProgress = $derived(formatSeconds(playerState.trackProgress))
-    let fmtDuration = $derived(formatSeconds(duration))
-
-    // Interval IDs are kept in an array just in case something bugs out
-    // so that it won't overwrite the previous ID and leave an eternal leaked
-    // interval
-    let timerIds: number[] = []
-    $effect(() => {
-        if (playerState.playing) {
-            const timerId = setInterval(() => {
-                playerState.trackProgress += 1
-            }, 1000)
-            timerIds.push(timerId)
+    async function handleBackSkip() {
+        if (
+            playerState.position >= 5 /* seconds */ ||
+            !recentlyPlayed.tracks[0]
+        ) {
+            await emit(SEEK_TRACK, { guildId: globalGuild.id, position: 0 })
         } else {
-            timerIds.forEach(clearInterval)
+            // Get previous track, if any
+            // Remove previous track from recents
+            // Prepend previous track to queue
+            const mostRecent = recentlyPlayed.tracks.shift() as Track
+            trackQueue.tracks.unshift(mostRecent)
+            await emit(QUEUE_TRACK, {
+                guildId: globalGuild.id,
+                filepath: mostRecent.path,
+                looping: playerState.looping,
+                prepend: true,
+                overwrite: false
+            })
         }
-    })
+    }
+
+    async function handlePlayerBarClick(
+        e: MouseEvent & {
+            currentTarget: EventTarget & HTMLButtonElement
+        }
+    ) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const clickX = e.clientX - rect.left
+        const progressWidth = rect.width
+        const seekTo = Math.floor((clickX / progressWidth) * duration)
+        await emit(SEEK_TRACK, { guildId: globalGuild.id, position: seekTo })
+    }
 
     function rgbToHex(rgb: string): string {
         const [r, g, b] = rgb.split(' ').map(Number)
@@ -63,6 +85,28 @@
     const activeColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-primary-400')
     )
+
+    let duration = $derived(trackQueue.tracks[0]?.duration ?? 60)
+
+    let fmtProgress = $derived(formatSeconds(playerState.position))
+    let fmtDuration = $derived(formatSeconds(duration))
+
+    // Interval IDs are kept in an array just in case something bugs out
+    // so that it won't overwrite the previous ID and leave an eternal leaked
+    // interval
+    let timerIds: number[] = []
+    $effect(() => {
+        if (playerState.playing) {
+            const timerId = setInterval(() => {
+                playerState.position += 1
+            }, 1000)
+            timerIds.push(timerId)
+        } else {
+            timerIds.forEach(clearInterval)
+        }
+    })
+
+    onDestroy(() => timerIds.forEach(clearInterval))
 </script>
 
 <div class="border-t-[1px] border-surface-900 mt-2 h-24 p-2 flex-none">
@@ -73,7 +117,7 @@
         >
         <button
             class="btn-icon rounded-none hover:preset-filled-surface-100-900"
-            disabled><SkipBack /></button
+            onclick={handleBackSkip}><SkipBack /></button
         >
         {#if playerState.playing}
             <button
@@ -113,14 +157,27 @@
     </div>
     <div class="flex items-center gap-4 px-4 max-w-[550px] mx-auto">
         <p class="type-scale-2 opacity-70">{fmtProgress}</p>
-        <Progress
-            max={duration}
-            meterBg="bg-white hover:bg-primary-400-600"
-            height="h-1"
-            value={playerState.trackProgress}
-        />
+        <button
+            class="w-full"
+            onclick={handlePlayerBarClick}
+            aria-label="player-bar"
+        >
+            <Progress
+                max={duration}
+                meterBg="bg-white hover:bg-primary-400-600"
+                trackBg="bg-surface-200-800 hover:bg-surface-300-700"
+                height="h-1"
+                value={playerState.position}
+            />
+        </button>
         <p class="type-scale-2 opacity-70">
             {#if trackQueue.tracks[0]}{fmtDuration}{:else}0:00{/if}
         </p>
     </div>
 </div>
+
+<!-- <progress
+    value={playerState.position}
+    max={duration}
+    class="w-full h-1 progress"
+></progress> -->

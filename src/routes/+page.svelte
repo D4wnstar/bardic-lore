@@ -42,12 +42,14 @@
 
         let unlisten2 = await listen<any>(UPDATE_TRACK, (ev) => {
             playerState.playing = ev.payload['playing'] ?? playerState.playing
+            playerState.position =
+                ev.payload['position'] ?? playerState.position
         })
         unlisten.push(unlisten2)
 
         let unlisten3 = await listen<any>(TRACK_ENDED, (_ev) => {
             let ended_track = trackQueue.tracks.shift()
-            playerState.trackProgress = 0
+            playerState.position = 0
             if (trackQueue.tracks.length === 0) {
                 playerState.playing = false
             }

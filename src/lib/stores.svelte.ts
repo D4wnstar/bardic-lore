@@ -45,7 +45,7 @@ export type TrackQueue = {
 }
 export type PlayerState = {
     playing: boolean
-    trackProgress: number
+    position: number
     looping: boolean
     offline: boolean
 }
@@ -61,7 +61,7 @@ export const recentlyPlayed: TrackQueue = $state({
 })
 export const playerState: PlayerState = $state({
     playing: false,
-    trackProgress: 0,
+    position: 0,
     looping: false,
     offline: true
 })

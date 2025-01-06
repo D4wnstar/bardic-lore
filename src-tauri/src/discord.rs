@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,8 +18,9 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
     events::{
-        BOT_ERROR, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK,
-        QUEUE_TRACK, RESUME_PLAYBACK, SKIP_TRACK, TRACK_ENDED, UPDATED_GUILDS, UPDATE_TRACK,
+        GuildChannelIdPayload, GuildIdPayload, QueueActionPayload, QueueTrackPayload, BOT_ERROR,
+        JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK, QUEUE_TRACK,
+        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, UPDATED_GUILDS, UPDATE_TRACK,
     },
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
@@ -72,7 +70,6 @@ impl EventHandler for Handler {
         // command, we register a callback for an event right here and then emit that
         // event from anywhere
 
-        let ctx = Arc::new(ctx);
         let manager = songbird::get(&ctx)
             .await
             .expect("Failed to get Songbird manager");
@@ -81,59 +78,67 @@ impl EventHandler for Handler {
         // The need for a tokio::spawn to permit await calls causes annoying double-cloning of Arcs
         // because they need to be moved twice (first in the callback, then in the tokio async task)
         // Performance isn't a concern for these callbacks, but it's just kind of ugly
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(JOIN_VOICE_CHANNEL, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                join_voice_channel(ev, &ctx, &manager, &app).await;
+                join_voice_channel(ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(LEAVE_VOICE_CHANNEL, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                leave_voice_channel(ev, &ctx, &manager, &app).await;
+                leave_voice_channel(ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(QUEUE_TRACK, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                queue_track(ev, &ctx, &manager, &app).await;
+                queue_track(ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(RESUME_PLAYBACK, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                queue_action(QueueAction::Resume, ev, &ctx, &manager, &app).await;
+                queue_action(QueueAction::Resume, ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(PAUSE_PLAYBACK, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                queue_action(QueueAction::Pause, ev, &ctx, &manager, &app).await;
+                queue_action(QueueAction::Pause, ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(SKIP_TRACK, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                queue_action(QueueAction::Skip, ev, &ctx, &manager, &app).await;
+                queue_action(QueueAction::Skip, ev, &manager, &app).await;
             });
         });
 
-        let (ctx1, manager1, app1) = clone_boilerplate(&ctx, &manager, &self.app);
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
         self.app.listen(LOOP_TRACK, move |ev| {
-            let (ctx, manager, app) = clone_boilerplate(&ctx1, &manager1, &app1);
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
-                queue_action(QueueAction::Loop, ev, &ctx, &manager, &app).await;
+                queue_action(QueueAction::Loop, ev, &manager, &app).await;
+            });
+        });
+
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        self.app.listen(SEEK_TRACK, move |ev| {
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            tokio::spawn(async move {
+                queue_action(QueueAction::Seek, ev, &manager, &app).await;
             });
         });
     }
@@ -234,31 +239,12 @@ impl VoiceEventHandler for NotifyTrackEnd {
 }
 
 /* EVENT CALLBACKS */
-async fn join_voice_channel(
-    ev: tauri::Event,
-    ctx: &Arc<Context>,
-    manager: &Arc<Songbird>,
-    app: &AppHandle,
-) {
-    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-    let guild_id = get_guild_id(&payload, &ctx, &app);
-    if let None = guild_id {
-        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
-        return;
-    }
-    let guild_id = guild_id.unwrap();
-
-    let channel_id = get_channel_id(&guild_id, &payload, &ctx, &app);
-    if let None = channel_id {
-        print_emit_error(BOT_ERROR, "Channel ID not in payload", &app);
-        return;
-    }
-    let channel_id = channel_id.unwrap();
-
-    if let Err(err) = manager.join(guild_id, channel_id).await {
+async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+    let payload: GuildChannelIdPayload = serde_json::from_str(ev.payload()).unwrap();
+    if let Err(err) = manager.join(payload.guildId, payload.channelId).await {
         print_emit_error(BOT_ERROR, &format!("Failed to join channel. {err}"), &app);
     } else {
-        let handler_lock = manager.get(guild_id).unwrap();
+        let handler_lock = manager.get(payload.guildId).unwrap();
         let mut handler = handler_lock.lock().await;
 
         // Add an event handler to relay TrackEvent::Ends to Tauri
@@ -269,23 +255,12 @@ async fn join_voice_channel(
     };
 }
 
-async fn leave_voice_channel(
-    ev: tauri::Event,
-    ctx: &Arc<Context>,
-    manager: &Arc<Songbird>,
-    app: &AppHandle,
-) {
-    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-    let guild_id = get_guild_id(&payload, &ctx, &app);
-    if let None = guild_id {
-        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
-        return;
-    }
-    let guild_id = guild_id.unwrap();
-    let bot_is_in_a_call = manager.get(guild_id).is_some();
+async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+    let payload: GuildIdPayload = serde_json::from_str(ev.payload()).unwrap();
+    let bot_is_in_a_call = manager.get(payload.guildId).is_some();
     if bot_is_in_a_call {
         manager
-            .remove(guild_id)
+            .remove(payload.guildId)
             .await
             .expect("Failed to leave channel");
         app.emit(UPDATE_TRACK, json!({ "playing": false })).unwrap();
@@ -294,36 +269,54 @@ async fn leave_voice_channel(
     };
 }
 
-async fn queue_track(
-    ev: tauri::Event,
-    ctx: &Arc<Context>,
-    manager: &Arc<Songbird>,
-    app: &AppHandle,
-) {
-    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-    let guild_id = get_guild_id(&payload, &ctx, &app);
-    let filepath = payload.get("filepath").cloned();
-    let looping = payload.get("loop");
-    if let None = guild_id {
-        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
-        return;
-    }
-    if let None = filepath {
-        print_emit_error(BOT_ERROR, "Filepath not in payload", &app);
-        return;
-    }
-    if let None = looping {
-        print_emit_error(BOT_ERROR, "Looping not in payload. Not looping", &app);
-    }
-
-    if let Some(handler_lock) = manager.get(guild_id.unwrap()) {
+async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+    let payload: QueueTrackPayload = serde_json::from_str(ev.payload()).unwrap();
+    if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
-        let mut track: Track = songbird::input::File::new(filepath.unwrap()).into();
-        if looping.unwrap().parse::<bool>().unwrap() {
+        let mut track: Track = songbird::input::File::new(payload.filepath).into();
+        if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
-        let _handle = handler.enqueue(track).await;
-        app.emit(UPDATE_TRACK, json!({ "playing": true })).unwrap();
+        let response = if payload.overwrite {
+            // Unfortunately, the Queued type has private fields so I can't
+            // initialize the new track manually despite having the TrackHandle. This means
+            // I have to first put the track in the queue with the builtin method
+            // and then move it after
+            if handler.queue().is_empty() {
+                handler.enqueue(track).await;
+            } else {
+                handler.enqueue(track).await;
+                handler.queue().modify_queue(|q| {
+                    let curr = q.pop_front().unwrap();
+                    curr.stop().unwrap();
+                    let new = q.pop_back().unwrap();
+                    new.play().unwrap();
+                    q.push_front(new);
+                })
+            }
+            json!({ "playing": true, "position": 0 })
+        } else if payload.prepend {
+            let _ = handler.enqueue(track).await;
+            handler.queue().modify_queue(|q| {
+                // Pause and seek to zero the current track
+                let curr_track = q.front().expect("Guaranteed to exist");
+                curr_track.pause().expect("Failed to pause current track");
+                curr_track
+                    .seek(Duration::ZERO)
+                    .result()
+                    .expect("Failed to set seek current track to zero");
+                // Move the new track from then end of the queue to the start
+                // Popping it off the queue seems to pause it, so make sure to play it
+                let new = q.pop_back().expect("Guaranteed to exist");
+                new.play().expect("Failed to play new track");
+                q.push_front(new);
+            });
+            json!({ "playing": true, "position": 0 })
+        } else {
+            let _ = handler.enqueue(track).await;
+            json!({ "playing": true })
+        };
+        app.emit(UPDATE_TRACK, response).unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
@@ -335,23 +328,17 @@ enum QueueAction {
     Skip,
     Stop,
     Loop,
+    Seek,
 }
 
 async fn queue_action(
     action: QueueAction,
     ev: tauri::Event,
-    ctx: &Arc<Context>,
     manager: &Arc<Songbird>,
     app: &AppHandle,
 ) {
-    let payload: HashMap<String, String> = serde_json::from_str(ev.payload()).unwrap();
-    let guild_id = get_guild_id(&payload, &ctx, &app);
-    if let None = guild_id {
-        print_emit_error(BOT_ERROR, "Guild ID not in payload", &app);
-        return;
-    }
-
-    let maybe_handler = manager.get(guild_id.unwrap());
+    let payload: QueueActionPayload = serde_json::from_str(ev.payload()).unwrap();
+    let maybe_handler = manager.get(payload.guildId);
     if let None = maybe_handler {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
         return;
@@ -367,6 +354,7 @@ async fn queue_action(
         QueueAction::Skip => "skip",
         QueueAction::Stop => "stop",
         QueueAction::Loop => "activate loop for",
+        QueueAction::Seek => "seek",
     };
     let response_event = match action {
         QueueAction::Resume => Some(UPDATE_TRACK),
@@ -374,6 +362,7 @@ async fn queue_action(
         QueueAction::Skip => None,
         QueueAction::Stop => todo!(),
         QueueAction::Loop => Some(UPDATE_TRACK),
+        QueueAction::Seek => Some(UPDATE_TRACK),
     };
 
     let result = match action {
@@ -411,6 +400,21 @@ async fn queue_action(
                 None
             }
         }
+        QueueAction::Seek => {
+            if let Some(curr_track) = queue.current() {
+                if let Some(position) = payload.position {
+                    let time = Duration::from_secs(position);
+                    let res = curr_track.seek_async(time).await;
+                    // Drop the duration inside to avoid a type mismatch with other arms
+                    let res = res.map(|_| ());
+                    Some((res, json!({ "position": position })))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
     };
 
     match result {
@@ -431,72 +435,6 @@ async fn queue_action(
 }
 
 /* CONVENIENCE FUNCTIONS */
-/// Convenience function to turn a u64 guild ID from a payload into a proper GuildId object.
-fn get_guild_id(
-    payload: &HashMap<String, String>,
-    ctx: &Context,
-    app: &AppHandle,
-) -> Option<GuildId> {
-    let maybe_guild_id = payload.get("guildId");
-    if let None = maybe_guild_id {
-        return None;
-    }
-    let guild_id = {
-        let gid = maybe_guild_id
-            .unwrap()
-            .parse::<u64>()
-            .or_else(|err| {
-                print_emit_error(BOT_ERROR, "Failed to parse Guild ID to u64", app);
-                return Err(err);
-            })
-            .ok();
-        if let None = gid {
-            return None;
-        }
-
-        let guild = ctx.cache.guild(gid.unwrap()).unwrap();
-        guild.id
-    };
-
-    return Some(guild_id);
-}
-
-/// Convenience function to turn a u64 channel ID from a payload into a proper ChannelId object.
-fn get_channel_id(
-    guild_id: &GuildId,
-    payload: &HashMap<String, String>,
-    ctx: &Context,
-    app: &AppHandle,
-) -> Option<ChannelId> {
-    let maybe_channel_id = payload.get("channelId");
-    if let None = maybe_channel_id {
-        return None;
-    }
-    let channel_id = {
-        let cid = maybe_channel_id
-            .unwrap()
-            .parse::<u64>()
-            .or_else(|err| {
-                print_emit_error(BOT_ERROR, "Failed to parse Channel ID to u64", app);
-                return Err(err);
-            })
-            .ok();
-        if let None = cid {
-            return None;
-        }
-
-        let guild = ctx.cache.guild(guild_id).unwrap();
-        let channel = guild
-            .channels
-            .iter()
-            .find(|c| *c.0 == cid.unwrap())
-            .unwrap();
-        channel.0.clone()
-    };
-
-    return Some(channel_id);
-}
-
 /// Print an error to stderr and emit a Tauri event with the same message as the payload.
 fn print_emit_error(ev_name: &str, error_msg: &str, app: &AppHandle) {
     eprintln!("{error_msg}");
@@ -504,13 +442,8 @@ fn print_emit_error(ev_name: &str, error_msg: &str, app: &AppHandle) {
 }
 
 /// Clone some references to have them moved into callbacks/tasks.
-fn clone_boilerplate(
-    ctx: &Arc<Context>,
-    manager: &Arc<Songbird>,
-    app: &AppHandle,
-) -> (Arc<Context>, Arc<Songbird>, AppHandle) {
-    let ctx1 = Arc::clone(ctx);
+fn clone_boilerplate(manager: &Arc<Songbird>, app: &AppHandle) -> (Arc<Songbird>, AppHandle) {
     let manager1 = Arc::clone(manager);
     let app1 = app.clone();
-    return (ctx1, manager1, app1);
+    return (manager1, app1);
 }

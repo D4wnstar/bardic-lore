@@ -63,9 +63,9 @@
     onMount(getAudioSources)
 </script>
 
-<div id="sources-sidebar" class="flex flex-col h-full min-h-0 pb-4 space-y-2">
+<div id="sources-sidebar" class="flex flex-col h-full min-h-0 pb-5 space-y-2">
     <h3 class="h3 text-center">Audio Sources</h3>
-    <small class="small px-2 text-justify">
+    <small class="small px-3 text-justify">
         Audio Sources are the folders in which your audio files are contained.
         Audio files in these folders (and optionally sub-folders) will appear in
         the menu.

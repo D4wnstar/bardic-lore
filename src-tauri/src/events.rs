@@ -1,9 +1,14 @@
+#![allow(non_snake_case)] // Payloads are in JSON so camelCase it is
+
 //! This module contains events emitted by Tauri for communication, primarily
 //! between the Discord bot and the UI to keep them synchronized.
 
 // All events should be written in kebab-case.
 // This file should be synchronized with src/lib/events.ts in the frontend.
 // If you need to add or change an event, please change the TypeScript file too.
+
+use serde::{Deserialize, Serialize};
+use serenity::all::{ChannelId, GuildId};
 
 /* FROM UI TO BOT */
 /// This event tells the Bot to enter a voice channel.
@@ -30,6 +35,9 @@ pub const SKIP_TRACK: &str = "skip-track";
 /// This event tells the bot to loop the current track indefinitely.
 /// The payload must include the guild ID.
 pub const LOOP_TRACK: &str = "loop-track";
+/// This event tells the bot to seek to the given position.
+/// The payload must include the guild ID and the position as a u64.
+pub const SEEK_TRACK: &str = "seek-track";
 
 /* FROM BOT TO UI */
 /// This event indicates that there was an error in a bot command. It is
@@ -49,3 +57,30 @@ pub const UPDATE_TRACK: &str = "update-track";
 /// This event notifies the frontend that a track just finished. Essentially a relay
 /// of songbird's `TrackEvent::End`.
 pub const TRACK_ENDED: &str = "track-ended";
+
+/* PAYLOADS */
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GuildIdPayload {
+    pub guildId: GuildId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GuildChannelIdPayload {
+    pub guildId: GuildId,
+    pub channelId: ChannelId,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QueueTrackPayload {
+    pub guildId: GuildId,
+    pub prepend: bool,
+    pub overwrite: bool,
+    pub filepath: String,
+    pub looping: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QueueActionPayload {
+    pub guildId: GuildId,
+    pub position: Option<u64>,
+}
