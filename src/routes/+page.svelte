@@ -21,8 +21,10 @@
         BOT_ERROR,
         TRACK_ENDED,
         TRACK_LOOPED,
+        TRACK_PAUSED,
+        TRACK_PLAYABLE,
         TRACK_PLAYED,
-        UPDATE_TRACK
+        UPDATE_PLAYER
     } from '$lib/events'
 
     let tracks: Track[] = $state([])
@@ -47,14 +49,17 @@
         })
         unlisten.push(unlisten1)
 
-        let unlisten2 = await listen<any>(UPDATE_TRACK, (ev) => {
-            playerState.playing = ev.payload['playing'] ?? playerState.playing
-            playerState.position =
-                ev.payload['position'] ?? playerState.position
+        let unlisten2 = await listen<any>(TRACK_PLAYED, (ev) => {
+            playerState.playing = true
         })
         unlisten.push(unlisten2)
 
-        let unlisten3 = await listen<any>(TRACK_ENDED, (_ev) => {
+        let unlisten3 = await listen<any>(TRACK_PAUSED, (ev) => {
+            playerState.playing = false
+        })
+        unlisten.push(unlisten3)
+
+        let unlisten4 = await listen<any>(TRACK_ENDED, (_ev) => {
             // If there is a track to overwrite, overwrite the current track
             // otherwise push to the end of queue
             let ended_track: Track | undefined
@@ -77,17 +82,24 @@
                 recentlyPlayed.tracks.unshift(ended_track)
             }
         })
-        unlisten.push(unlisten3)
-
-        let unlisten4 = await listen<any>(TRACK_LOOPED, (_ev) => {
-            playerState.position = 0
-        })
         unlisten.push(unlisten4)
 
-        let unlisten5 = await listen<any>(TRACK_PLAYED, (_ev) => {
-            playerState.playing = true
+        let unlisten5 = await listen<any>(TRACK_LOOPED, (_ev) => {
+            playerState.position = 0
         })
         unlisten.push(unlisten5)
+
+        let unlisten6 = await listen<any>(TRACK_PLAYABLE, (_ev) => {
+            playerState.playing = true
+        })
+        unlisten.push(unlisten6)
+
+        let unlisten7 = await listen<any>(UPDATE_PLAYER, (ev) => {
+            playerState.position =
+                ev.payload['position'] ?? playerState.position
+            playerState.mute = ev.payload['mute'] ?? playerState.mute
+        })
+        unlisten.push(unlisten7)
     })
 
     onDestroy(() => {

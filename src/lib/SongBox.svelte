@@ -42,7 +42,8 @@
                 trackData: track,
                 looping: playerState.looping,
                 overwrite,
-                prepend: false
+                prepend: false,
+                volume: playerState.volume
             })
         }
     }

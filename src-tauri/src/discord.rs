@@ -19,9 +19,9 @@ use tokio::sync::Mutex as AsyncMutex;
 use crate::{
     events::{
         GuildChannelIdPayload, GuildIdPayload, QueueActionPayload, QueueTrackPayload, BOT_ERROR,
-        JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK, QUEUE_TRACK,
-        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED, TRACK_PLAYABLE,
-        UPDATED_GUILDS, UPDATE_TRACK,
+        CHANGE_VOLUME, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE,
+        PAUSE_PLAYBACK, QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED,
+        TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
     },
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
@@ -142,6 +142,20 @@ impl EventHandler for Handler {
                 queue_action(QueueAction::Seek, ev, &manager, &app).await;
             });
         });
+
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        self.app.listen(CHANGE_VOLUME, move |ev| {
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            tokio::spawn(async move {
+                queue_action(QueueAction::ChangeVolume, ev, &manager, &app).await;
+            });
+        });
+
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        self.app.listen(MUTE_UNMUTE, move |ev| {
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            tokio::spawn(async move { mute_unmute(ev, &manager, &app).await });
+        });
     }
 
     async fn guild_create(&self, _ctx: Context, guild: Guild, _is_new: Option<bool>) {
@@ -253,6 +267,20 @@ impl VoiceEventHandler for RelayTrackLoop {
     }
 }
 
+struct RelayTrackPlayable {
+    app: AppHandle,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPlayable {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(TRACK_PLAYABLE, ())
+            .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
+        return None;
+    }
+}
+
 struct RelayTrackPlay {
     app: AppHandle,
 }
@@ -261,8 +289,22 @@ struct RelayTrackPlay {
 impl VoiceEventHandler for RelayTrackPlay {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
         self.app
-            .emit(TRACK_PLAYABLE, ())
-            .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
+            .emit(TRACK_PLAYED, ())
+            .expect(&format!("Couldn't emit {TRACK_PLAYED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackPause {
+    app: AppHandle,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPause {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(TRACK_PAUSED, ())
+            .expect(&format!("Couldn't emit {TRACK_PAUSED} event"));
         return None;
     }
 }
@@ -276,7 +318,7 @@ async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &App
         let handler_lock = manager.get(payload.guildId).unwrap();
         let mut handler = handler_lock.lock().await;
 
-        // Add event handlers to relay TrackEvents to the frontend
+        // Add event handlers so that TrackEvents also fire Tauri events
         handler.add_global_event(
             songbird::Event::Track(TrackEvent::End),
             RelayTrackEnd { app: app.clone() },
@@ -287,7 +329,15 @@ async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &App
         );
         handler.add_global_event(
             songbird::Event::Track(TrackEvent::Playable),
+            RelayTrackPlayable { app: app.clone() },
+        );
+        handler.add_global_event(
+            songbird::Event::Track(TrackEvent::Play),
             RelayTrackPlay { app: app.clone() },
+        );
+        handler.add_global_event(
+            songbird::Event::Track(TrackEvent::Pause),
+            RelayTrackPause { app: app.clone() },
         );
     };
 }
@@ -300,7 +350,8 @@ async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &Ap
             .remove(payload.guildId)
             .await
             .expect("Failed to leave channel");
-        app.emit(UPDATE_TRACK, json!({ "playing": false })).unwrap();
+        app.emit(UPDATE_PLAYER, json!({ "playing": false }))
+            .unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Bot not in a voice channel", &app);
     };
@@ -311,9 +362,11 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
     if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
         let mut track: Track = songbird::input::File::new(payload.trackData.path).into();
+        track.volume = payload.volume;
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
+
         let response = if payload.overwrite {
             // Unfortunately, the Queued type has private fields so I can't
             // initialize the new track manually despite having the TrackHandle. This means
@@ -331,7 +384,7 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                     q.push_front(new);
                 });
             }
-            json!({ "playing": true, "position": 0 })
+            json!({ "position": 0 })
         } else if payload.prepend {
             let _ = handler.enqueue(track).await;
             handler.queue().modify_queue(|q| {
@@ -348,12 +401,12 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                 new.play().expect("Failed to play new track");
                 q.push_front(new);
             });
-            json!({ "playing": true, "position": 0 })
+            json!({ "position": 0 })
         } else {
             let _ = handler.enqueue(track).await;
-            json!({ "playing": true })
+            json!({})
         };
-        app.emit(UPDATE_TRACK, response).unwrap();
+        app.emit(UPDATE_PLAYER, response).unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
@@ -366,6 +419,7 @@ enum QueueAction {
     Stop,
     Loop,
     Seek,
+    ChangeVolume,
 }
 
 async fn queue_action(
@@ -392,19 +446,22 @@ async fn queue_action(
         QueueAction::Stop => "stop",
         QueueAction::Loop => "activate loop for",
         QueueAction::Seek => "seek",
+        QueueAction::ChangeVolume => "change volume",
     };
+    // Most of these are handled automatically by the TrackEvent relays
     let response_event = match action {
-        QueueAction::Resume => Some(UPDATE_TRACK),
-        QueueAction::Pause => Some(UPDATE_TRACK),
+        QueueAction::Resume => None,
+        QueueAction::Pause => None,
         QueueAction::Skip => None,
-        QueueAction::Stop => todo!(),
-        QueueAction::Loop => Some(UPDATE_TRACK),
-        QueueAction::Seek => Some(UPDATE_TRACK),
+        QueueAction::Stop => None,
+        QueueAction::Loop => None,
+        QueueAction::Seek => Some(UPDATE_PLAYER),
+        QueueAction::ChangeVolume => None,
     };
 
     let result = match action {
-        QueueAction::Resume => Some((queue.resume(), json!({ "playing": true }))),
-        QueueAction::Pause => Some((queue.pause(), json!({ "playing": false }))),
+        QueueAction::Resume => Some((queue.resume(), json!({}))),
+        QueueAction::Pause => Some((queue.pause(), json!({}))),
         QueueAction::Skip => Some((queue.skip(), json!({}))),
         QueueAction::Stop => {
             queue.stop();
@@ -421,18 +478,11 @@ async fn queue_action(
                     );
                     return;
                 };
-                let new_state;
                 let res = match maybe_info.unwrap().loops {
-                    LoopState::Infinite => {
-                        new_state = false;
-                        track.disable_loop()
-                    }
-                    LoopState::Finite(_) => {
-                        new_state = true;
-                        track.enable_loop()
-                    }
+                    LoopState::Infinite => track.disable_loop(),
+                    LoopState::Finite(_) => track.enable_loop(),
                 };
-                Some((res, json!({ "looping": new_state })))
+                Some((res, json!({})))
             } else {
                 None
             }
@@ -452,6 +502,19 @@ async fn queue_action(
                 None
             }
         }
+        QueueAction::ChangeVolume => {
+            let volume = payload
+                .volume
+                .expect("Volume change event should have volume as payload");
+            queue.modify_queue(|q| {
+                for track in q {
+                    track
+                        .set_volume(volume)
+                        .expect("Couldn't change volume on track");
+                }
+            });
+            None
+        }
     };
 
     match result {
@@ -468,6 +531,29 @@ async fn queue_action(
             }
         }
         None => (),
+    }
+}
+
+async fn mute_unmute(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+    let payload: GuildIdPayload = serde_json::from_str(ev.payload()).unwrap();
+    let maybe_handler = manager.get(payload.guildId);
+    if let None = maybe_handler {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        return;
+    };
+    let lock = maybe_handler.unwrap();
+    let mut handler = lock.lock().await;
+    let is_mute = handler.is_mute();
+    let res = handler.mute(!is_mute).await;
+    if let Err(err) = res {
+        print_emit_error(
+            BOT_ERROR,
+            &format!("Error when changing mute state: {err}"),
+            &app,
+        );
+    } else {
+        app.emit(UPDATE_PLAYER, json!({ "mute": !is_mute }))
+            .unwrap();
     }
 }
 

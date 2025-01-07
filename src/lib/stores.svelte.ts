@@ -50,8 +50,10 @@ export type MaybeTrack = {
 export type PlayerState = {
     playing: boolean
     position: number
+    volume: number
     looping: boolean
     offline: boolean
+    mute: boolean
 }
 
 export const globalGuild = $state({
@@ -67,6 +69,8 @@ export const toOverwrite: MaybeTrack = $state({ track: undefined })
 export const playerState: PlayerState = $state({
     playing: false,
     position: 0,
+    volume: 1.0,
     looping: false,
-    offline: true
+    offline: true,
+    mute: false
 })

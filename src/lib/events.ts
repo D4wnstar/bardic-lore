@@ -50,6 +50,16 @@ export const LOOP_TRACK = 'loop-track'
  * The payload must include the guild ID and the position as a u64.
  */
 export const SEEK_TRACK = 'seek-track'
+/**
+ * This event tells the bot to change the playback volume.
+ * The payload must include the guild ID and volume as an f32.
+ */
+export const CHANGE_VOLUME = 'change-volume'
+/**
+ * This event tells the bot to mute or unmute, inverting the state.
+ * The payload must include the guild ID.
+ */
+export const MUTE_UNMUTE = 'mute-unmute'
 
 /* FROM BOT TO UI */
 /**
@@ -65,13 +75,15 @@ export const BOT_ERROR = 'bot-error'
  */
 export const UPDATED_GUILDS = 'updated-guilds'
 /**
- * This event instructs the frontend to update the current track $state rune
+ * This event instructs the frontend to update the playerState $state rune
  * using the information passed in the payload. The payload must be a `serde_json`
  * `Value`, probably made with the `json!` macro. The frontend will update the
  * fields in the $state based on which keys match. See src/lib/stores.svelte.ts
  * for the data structure. Make sure the types are correct.
  */
-export const UPDATE_TRACK = 'update-track'
+export const UPDATE_PLAYER = 'update-player'
+
+/* TRACKEVENT RELAYS */
 /**
  * This event notifies the frontend that a track just finished. Essentially a relay
  * of songbird's `TrackEvent::End`.
@@ -83,7 +95,17 @@ export const TRACK_ENDED = 'track-ended'
  */
 export const TRACK_LOOPED = 'track-looped'
 /**
- * This event notifies the frontend that a track just started playing. Essentially a relay
+ * This event notifies the frontend that a track just became playable. Essentially a relay
+ * of songbird's `TrackEvent::Playable`.
+ */
+export const TRACK_PLAYABLE = 'track-playable'
+/**
+ * This event notifies the frontend that a track just resumed playing. Essentially a relay
  * of songbird's `TrackEvent::Play`.
  */
 export const TRACK_PLAYED = 'track-played'
+/**
+ * This event notifies the frontend that a track just paused. Essentially a relay
+ * of songbird's `TrackEvent::Pause`.
+ */
+export const TRACK_PAUSED = 'track-paused'

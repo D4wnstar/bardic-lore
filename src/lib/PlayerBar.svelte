@@ -5,7 +5,9 @@
         Repeat,
         Shuffle,
         SkipBack,
-        SkipForward
+        SkipForward,
+        Volume2,
+        VolumeX
     } from 'lucide-svelte'
     import {
         globalGuild,
@@ -15,14 +17,16 @@
     } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
     import {
+        CHANGE_VOLUME,
         LOOP_TRACK,
+        MUTE_UNMUTE,
         PAUSE_PLAYBACK,
         QUEUE_TRACK,
         RESUME_PLAYBACK,
         SEEK_TRACK,
         SKIP_TRACK
     } from './events'
-    import { Progress } from '@skeletonlabs/skeleton-svelte'
+    import { Progress, Slider } from '@skeletonlabs/skeleton-svelte'
     import { onDestroy } from 'svelte'
     import type { Track } from './types'
 
@@ -64,9 +68,18 @@
                 trackData: mostRecent,
                 looping: playerState.looping,
                 prepend: true,
-                overwrite: false
+                overwrite: false,
+                volume: playerState.volume
             })
         }
+    }
+
+    async function handleVolumeChange(e: { value: number[] }) {
+        playerState.volume = e.value[0] / 100
+        await emit(CHANGE_VOLUME, {
+            guildId: globalGuild.id,
+            volume: playerState.volume
+        })
     }
 
     async function handlePlayerBarClick(
@@ -79,6 +92,14 @@
         const progressWidth = rect.width
         const seekTo = Math.floor((clickX / progressWidth) * duration)
         await emit(SEEK_TRACK, { guildId: globalGuild.id, position: seekTo })
+    }
+
+    async function handleMuteClick(
+        e: MouseEvent & {
+            currentTarget: EventTarget & HTMLButtonElement
+        }
+    ) {
+        await emit(MUTE_UNMUTE, { guildId: globalGuild.id })
     }
 
     function rgbToHex(rgb: string): string {
@@ -95,6 +116,8 @@
 
     let fmtProgress = $derived(formatSeconds(playerState.position))
     let fmtDuration = $derived(formatSeconds(duration))
+
+    $inspect(playerState.volume)
 
     // Interval IDs are kept in an array just in case something bugs out
     // so that it won't overwrite the previous ID and leave an eternal leaked
@@ -115,7 +138,7 @@
 </script>
 
 <div class="border-t-[1px] border-surface-900 mt-2 h-24 p-2 flex-none">
-    <div class="flex justify-center gap-2 mb-3 mt-2">
+    <div class="flex justify-center gap-2 mb-2 mt-2">
         <button
             class="btn-icon rounded-none hover:preset-filled-surface-100-900"
             disabled><Shuffle /></button
@@ -160,29 +183,49 @@
             /></button
         >
     </div>
-    <div class="flex items-center gap-4 px-4 max-w-[550px] mx-auto">
-        <p class="type-scale-2 opacity-70">{fmtProgress}</p>
-        <button
-            class="w-full"
-            onclick={handlePlayerBarClick}
-            aria-label="player-bar"
-        >
-            <Progress
-                max={duration}
-                meterBg="bg-white hover:bg-primary-400-600"
-                trackBg="bg-surface-200-800 hover:bg-surface-300-700"
+
+    <div class="flex">
+        <!-- Empty padding space. Width should be equal to volume slider -->
+        <div class="min-w-[200px]"></div>
+        <!-- Actual bar -->
+        <div class="flex items-center gap-4 px-4 max-w-[550px] grow mx-auto">
+            <p class="type-scale-2 opacity-70">{fmtProgress}</p>
+            <button
+                class="w-full"
+                onclick={handlePlayerBarClick}
+                aria-label="player-bar"
+            >
+                <Progress
+                    max={duration}
+                    meterBg="bg-white hover:bg-primary-400-600"
+                    trackBg="bg-surface-200-800 hover:bg-surface-300-700"
+                    height="h-1"
+                    value={playerState.position}
+                />
+            </button>
+            <p class="type-scale-2 opacity-70">
+                {#if trackQueue.tracks[0]}{fmtDuration}{:else}0:00{/if}
+            </p>
+        </div>
+        <!-- Volume slider -->
+        <div class="min-w-[200px] gap-x-3 flex">
+            <button
+                class="btn-icon rounded-none hover:preset-filled-surface-100-900"
+                onclick={handleMuteClick}
+            >
+                {#if playerState.mute}
+                    <VolumeX />
+                {:else}
+                    <Volume2 />
+                {/if}
+            </button>
+            <Slider
+                classes="pt-[16px]"
+                thumbCursor="cursor-ew-resize"
                 height="h-1"
-                value={playerState.position}
+                value={[50]}
+                onValueChangeEnd={handleVolumeChange}
             />
-        </button>
-        <p class="type-scale-2 opacity-70">
-            {#if trackQueue.tracks[0]}{fmtDuration}{:else}0:00{/if}
-        </p>
+        </div>
     </div>
 </div>
-
-<!-- <progress
-    value={playerState.position}
-    max={duration}
-    class="w-full h-1 progress"
-></progress> -->

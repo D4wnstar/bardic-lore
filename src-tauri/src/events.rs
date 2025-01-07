@@ -40,6 +40,12 @@ pub const LOOP_TRACK: &str = "loop-track";
 /// This event tells the bot to seek to the given position.
 /// The payload must include the guild ID and the position as a u64.
 pub const SEEK_TRACK: &str = "seek-track";
+/// This event tells the bot to change the playback volume.
+/// The payload must include the guild ID and volume as an f32.
+pub const CHANGE_VOLUME: &str = "change-volume";
+/// This event tells the bot to mute or unmute, inverting the state.
+/// The payload must include the guild ID.
+pub const MUTE_UNMUTE: &str = "mute-unmute";
 
 /* FROM BOT TO UI */
 /// This event indicates that there was an error in a bot command. It is
@@ -50,12 +56,12 @@ pub const BOT_ERROR: &str = "bot-error";
 /// and the Tauri store was update to match.
 /// It is fired whenever the bot receives a GUILD_CREATE event.
 pub const UPDATED_GUILDS: &str = "updated-guilds";
-/// This event instructs the frontend to update the current track $state rune
+/// This event instructs the frontend to update the playerState $state rune
 /// using the information passed in the payload. The payload must be a `serde_json`
 /// `Value`, probably made with the `json!` macro. The frontend will update the
 /// fields in the $state based on which keys match. See src/lib/stores.svelte.ts
 /// for the data structure. Make sure the types are correct.
-pub const UPDATE_TRACK: &str = "update-track";
+pub const UPDATE_PLAYER: &str = "update-player";
 
 /* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay
@@ -67,6 +73,12 @@ pub const TRACK_LOOPED: &str = "track-looped";
 /// This event notifies the frontend that a track just became playable. Essentially a relay
 /// of songbird's `TrackEvent::Playable`.
 pub const TRACK_PLAYABLE: &str = "track-playable";
+/// This event notifies the frontend that a track just resumed playing. Essentially a relay
+/// of songbird's `TrackEvent::Play`.
+pub const TRACK_PLAYED: &str = "track-played";
+/// This event notifies the frontend that a track just paused. Essentially a relay
+/// of songbird's `TrackEvent::Pause`.
+pub const TRACK_PAUSED: &str = "track-paused";
 
 /* PAYLOADS */
 #[derive(Serialize, Deserialize, Debug)]
@@ -87,10 +99,12 @@ pub struct QueueTrackPayload {
     pub overwrite: bool,
     pub trackData: Track,
     pub looping: bool,
+    pub volume: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueActionPayload {
     pub guildId: GuildId,
     pub position: Option<u64>,
+    pub volume: Option<f32>,
 }
