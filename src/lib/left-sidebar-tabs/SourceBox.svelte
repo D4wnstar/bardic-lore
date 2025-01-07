@@ -2,9 +2,10 @@
     import type { AudioSource } from '$lib/types'
     import { basename } from '@tauri-apps/api/path'
     import { getContext } from 'svelte'
-    import { type ToastContext, Switch } from '@skeletonlabs/skeleton-svelte'
+    import { type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { invoke } from '@tauri-apps/api/core'
     import { Trash2 } from 'lucide-svelte'
+    import ZaglessSwitch from '$lib/utils/ZaglessSwitch.svelte'
 
     interface Props {
         source: AudioSource
@@ -76,28 +77,31 @@
     </div>
     <div class="grid grid-cols-[1fr_auto] gap-y-2">
         <p>Active</p>
-        <Switch
+        <ZaglessSwitch
             name="active"
             bind:checked={active}
             onCheckedChange={(state) =>
                 updateAudioSource(
                     source.path,
                     source.path,
-                    state.checked,
+                    state.currentTarget.checked,
                     recursive
                 )}
         />
         <p>Include subfolders</p>
-        <Switch
+        <ZaglessSwitch
             name="recursive"
             bind:checked={recursive}
-            onCheckedChange={(state) =>
+            onCheckedChange={(state) => {
+                console.log($state.snapshot(recursive))
+                console.log(state.currentTarget.checked)
                 updateAudioSource(
                     source.path,
                     source.path,
                     active,
-                    state.checked
-                )}
+                    state.currentTarget.checked
+                )
+            }}
         />
     </div>
 </div>

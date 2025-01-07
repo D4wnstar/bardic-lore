@@ -6,6 +6,7 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use symphonia::core::{
     formats::FormatOptions,
     io::MediaSourceStream,
@@ -151,17 +152,20 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
     let mut tracks: Vec<Track> = vec![];
 
     for source in audio_sources {
+        if !source.active {
+            continue;
+        }
         if source.recursive {
-            todo!()
-        } else if source.active {
-            for maybe_entry in source.path.read_dir()? {
-                if let Ok(entry) = maybe_entry {
-                    if let Some(track) = get_track_from_direntry(entry) {
-                        tracks.push(track);
-                    }
+            println!("Not implement recursive yet")
+        } // else {
+        for maybe_entry in source.path.read_dir()? {
+            if let Ok(entry) = maybe_entry {
+                if let Some(track) = get_track_from_direntry(entry) {
+                    tracks.push(track);
                 }
             }
         }
+        //}
     }
 
     tracks.sort();
@@ -266,7 +270,7 @@ fn get_audio_metadata(
 /* CONVENIENCE FUNCTIONS */
 /// Type safe getter for audio sources. Will return an empty HashSet if not found in store.
 fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource>, Error> {
-    let value = store.get(AUDIO_SOURCES_SETTING).unwrap_or("[]".into());
+    let value = store.get(AUDIO_SOURCES_SETTING).unwrap_or(json!([]));
     let sources = serde_json::from_value(value)?;
     return Ok(sources);
 }

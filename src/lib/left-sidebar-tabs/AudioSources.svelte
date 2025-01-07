@@ -36,16 +36,19 @@
         await refreshTracks()
     }
 
-    async function refreshTracks(response = false) {
+    async function refreshTracks() {
+        toast.create({
+            title: '',
+            description: 'Refreshing files. This may take a few seconds.',
+            type: 'info'
+        })
         await invoke('refresh_audio_files')
             .then(() => {
-                if (response) {
-                    toast.create({
-                        title: '',
-                        description: 'Refreshed files',
-                        type: 'info'
-                    })
-                }
+                toast.create({
+                    title: '',
+                    description: 'Refreshed files.',
+                    type: 'info'
+                })
             })
             .catch((err) => {
                 console.error(
@@ -86,7 +89,7 @@
         </button>
         <button
             class="preset-outlined-primary-400-600 btn self-center"
-            onclick={async () => await refreshTracks(true)}
+            onclick={refreshTracks}
         >
             Refresh files
         </button>

@@ -77,3 +77,13 @@ export const UPDATE_TRACK = 'update-track'
  * of songbird's `TrackEvent::End`.
  */
 export const TRACK_ENDED = 'track-ended'
+/**
+ * This event notifies the frontend that a track just looped. Essentially a relay
+ * of songbird's `TrackEvent::Loop`.
+ */
+export const TRACK_LOOPED = 'track-looped'
+/**
+ * This event notifies the frontend that a track just started playing. Essentially a relay
+ * of songbird's `TrackEvent::Play`.
+ */
+export const TRACK_PLAYED = 'track-played'

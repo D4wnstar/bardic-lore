@@ -10,7 +10,7 @@
     }
     let { getTracks }: Props = $props()
 
-    let tabIndex: number = $state(3)
+    let tabIndex: number = $state(2)
 </script>
 
 <aside

@@ -43,6 +43,11 @@
     }
 
     async function handleBackSkip() {
+        // If the queue is empty, do nothing
+        if (trackQueue.tracks.length === 0) {
+            return
+        }
+
         if (
             playerState.position >= 5 /* seconds */ ||
             !recentlyPlayed.tracks[0]
@@ -56,7 +61,7 @@
             trackQueue.tracks.unshift(mostRecent)
             await emit(QUEUE_TRACK, {
                 guildId: globalGuild.id,
-                filepath: mostRecent.path,
+                trackData: mostRecent,
                 looping: playerState.looping,
                 prepend: true,
                 overwrite: false

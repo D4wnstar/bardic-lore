@@ -8,6 +8,7 @@
     import {
         playerState,
         recentlyPlayed,
+        toOverwrite,
         trackQueue,
         TRACKS_FILENAME,
         TRACKS_SETTING
@@ -16,7 +17,13 @@
     import { getContext, onDestroy, onMount } from 'svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { type UnlistenFn, listen } from '@tauri-apps/api/event'
-    import { BOT_ERROR, TRACK_ENDED, UPDATE_TRACK } from '$lib/events'
+    import {
+        BOT_ERROR,
+        TRACK_ENDED,
+        TRACK_LOOPED,
+        TRACK_PLAYED,
+        UPDATE_TRACK
+    } from '$lib/events'
 
     let tracks: Track[] = $state([])
 
@@ -48,16 +55,39 @@
         unlisten.push(unlisten2)
 
         let unlisten3 = await listen<any>(TRACK_ENDED, (_ev) => {
-            let ended_track = trackQueue.tracks.shift()
+            // If there is a track to overwrite, overwrite the current track
+            // otherwise push to the end of queue
+            let ended_track: Track | undefined
+            if (toOverwrite.track && trackQueue.tracks[0]) {
+                ended_track = trackQueue.tracks[0]
+                trackQueue.tracks[0] = toOverwrite.track
+            } else {
+                ended_track = trackQueue.tracks.shift()
+            }
+            toOverwrite.track = undefined
+
+            // Reset position
             playerState.position = 0
+            // Make sure to sync play state if queue is now empty
             if (trackQueue.tracks.length === 0) {
                 playerState.playing = false
             }
+            // Update recent tracks if anything was removed
             if (ended_track) {
                 recentlyPlayed.tracks.unshift(ended_track)
             }
         })
         unlisten.push(unlisten3)
+
+        let unlisten4 = await listen<any>(TRACK_LOOPED, (_ev) => {
+            playerState.position = 0
+        })
+        unlisten.push(unlisten4)
+
+        let unlisten5 = await listen<any>(TRACK_PLAYED, (_ev) => {
+            playerState.playing = true
+        })
+        unlisten.push(unlisten5)
     })
 
     onDestroy(() => {

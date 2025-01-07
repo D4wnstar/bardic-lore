@@ -1,5 +1,10 @@
 <script lang="ts">
-    import { globalGuild, playerState, trackQueue } from './stores.svelte'
+    import {
+        globalGuild,
+        playerState,
+        toOverwrite,
+        trackQueue
+    } from './stores.svelte'
     import type { Track } from './types'
     import { emit } from '@tauri-apps/api/event'
     import { QUEUE_TRACK } from '$lib/events'
@@ -27,14 +32,18 @@
 
     async function addToQueue(overwrite: boolean) {
         if (!playerState.offline) {
+            if (overwrite && trackQueue.tracks.length > 0) {
+                toOverwrite.track = track
+            } else {
+                trackQueue.tracks.push(track)
+            }
             await emit(QUEUE_TRACK, {
                 guildId: globalGuild.id,
-                filepath: track.path,
+                trackData: track,
                 looping: playerState.looping,
                 overwrite,
                 prepend: false
             })
-            trackQueue.tracks.push(track)
         }
     }
 </script>

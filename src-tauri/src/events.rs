@@ -10,6 +10,8 @@
 use serde::{Deserialize, Serialize};
 use serenity::all::{ChannelId, GuildId};
 
+use crate::files::Track;
+
 /* FROM UI TO BOT */
 /// This event tells the Bot to enter a voice channel.
 /// The payload must include the guild ID and the channel ID.
@@ -54,9 +56,17 @@ pub const UPDATED_GUILDS: &str = "updated-guilds";
 /// fields in the $state based on which keys match. See src/lib/stores.svelte.ts
 /// for the data structure. Make sure the types are correct.
 pub const UPDATE_TRACK: &str = "update-track";
+
+/* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay
 /// of songbird's `TrackEvent::End`.
 pub const TRACK_ENDED: &str = "track-ended";
+/// This event notifies the frontend that a track just looped. Essentially a relay
+/// of songbird's `TrackEvent::Loop`.
+pub const TRACK_LOOPED: &str = "track-looped";
+/// This event notifies the frontend that a track just became playable. Essentially a relay
+/// of songbird's `TrackEvent::Playable`.
+pub const TRACK_PLAYABLE: &str = "track-playable";
 
 /* PAYLOADS */
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,7 +85,7 @@ pub struct QueueTrackPayload {
     pub guildId: GuildId,
     pub prepend: bool,
     pub overwrite: bool,
-    pub filepath: String,
+    pub trackData: Track,
     pub looping: bool,
 }
 

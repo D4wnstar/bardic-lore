@@ -20,7 +20,8 @@ use crate::{
     events::{
         GuildChannelIdPayload, GuildIdPayload, QueueActionPayload, QueueTrackPayload, BOT_ERROR,
         JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, PAUSE_PLAYBACK, QUEUE_TRACK,
-        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, UPDATED_GUILDS, UPDATE_TRACK,
+        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED, TRACK_PLAYABLE,
+        UPDATED_GUILDS, UPDATE_TRACK,
     },
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
@@ -224,16 +225,44 @@ pub async fn is_bot_connected(app: AppHandle) -> bool {
 }
 
 /* EVENT HANDLERS */
-struct NotifyTrackEnd {
+struct RelayTrackEnd {
     app: AppHandle,
 }
 
 #[async_trait]
-impl VoiceEventHandler for NotifyTrackEnd {
+impl VoiceEventHandler for RelayTrackEnd {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
         self.app
             .emit(TRACK_ENDED, ())
             .expect(&format!("Couldn't emit {TRACK_ENDED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackLoop {
+    app: AppHandle,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackLoop {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(TRACK_LOOPED, ())
+            .expect(&format!("Couldn't emit {TRACK_LOOPED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackPlay {
+    app: AppHandle,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPlay {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(TRACK_PLAYABLE, ())
+            .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
         return None;
     }
 }
@@ -247,10 +276,18 @@ async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &App
         let handler_lock = manager.get(payload.guildId).unwrap();
         let mut handler = handler_lock.lock().await;
 
-        // Add an event handler to relay TrackEvent::Ends to Tauri
+        // Add event handlers to relay TrackEvents to the frontend
         handler.add_global_event(
             songbird::Event::Track(TrackEvent::End),
-            NotifyTrackEnd { app: app.clone() },
+            RelayTrackEnd { app: app.clone() },
+        );
+        handler.add_global_event(
+            songbird::Event::Track(TrackEvent::Loop),
+            RelayTrackLoop { app: app.clone() },
+        );
+        handler.add_global_event(
+            songbird::Event::Track(TrackEvent::Playable),
+            RelayTrackPlay { app: app.clone() },
         );
     };
 }
@@ -273,7 +310,7 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
     let payload: QueueTrackPayload = serde_json::from_str(ev.payload()).unwrap();
     if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
-        let mut track: Track = songbird::input::File::new(payload.filepath).into();
+        let mut track: Track = songbird::input::File::new(payload.trackData.path).into();
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
@@ -292,7 +329,7 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                     let new = q.pop_back().unwrap();
                     new.play().unwrap();
                     q.push_front(new);
-                })
+                });
             }
             json!({ "playing": true, "position": 0 })
         } else if payload.prepend {

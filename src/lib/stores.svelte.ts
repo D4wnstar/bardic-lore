@@ -43,6 +43,10 @@ export const GUILDS_SETTING = 'guilds'
 export type TrackQueue = {
     tracks: Track[]
 }
+export type MaybeTrack = {
+    track: Track | undefined
+}
+
 export type PlayerState = {
     playing: boolean
     position: number
@@ -59,6 +63,7 @@ export const trackQueue: TrackQueue = $state({
 export const recentlyPlayed: TrackQueue = $state({
     tracks: []
 })
+export const toOverwrite: MaybeTrack = $state({ track: undefined })
 export const playerState: PlayerState = $state({
     playing: false,
     position: 0,

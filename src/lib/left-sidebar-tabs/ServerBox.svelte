@@ -10,7 +10,7 @@
 </script>
 
 <div
-    class="preset-filled-surface-100-900 !bg-opacity-50 px-4 py-2 rounded-md border-[1px] border-primary-100-900 !border-opacity-70"
+    class="preset-filled-surface-100-900 !bg-opacity-50 px-4 pt-2 pb-4 rounded-md border-[1px] border-primary-100-900 !border-opacity-70"
 >
     <h4 class="type-scale-5 grow text-secondary-700-300">
         <strong>{guild.name}</strong>
