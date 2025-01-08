@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    fs::{DirEntry, File},
+    fs::{File, FileType},
     path::PathBuf,
     sync::Arc,
 };
@@ -17,6 +17,7 @@ use symphonia::core::{
 use tauri::{AppHandle, Wry};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::{Store, StoreExt};
+use walkdir::WalkDir;
 
 use crate::{
     stores::{AUDIO_SOURCES_SETTING, SETTINGS_FILENAME, TRACKS_FILENAME, TRACKS_SETTING},
@@ -156,16 +157,26 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
             continue;
         }
         if source.recursive {
-            println!("Not implement recursive yet")
-        } // else {
-        for maybe_entry in source.path.read_dir()? {
-            if let Ok(entry) = maybe_entry {
-                if let Some(track) = get_track_from_direntry(entry) {
+            for entry in WalkDir::new(source.path).into_iter().filter_map(|e| e.ok()) {
+                if let Some(track) = make_track(
+                    Some(entry.file_type()),
+                    entry.file_name().to_string_lossy().to_string(),
+                    entry.path().to_path_buf(),
+                ) {
+                    tracks.push(track);
+                }
+            }
+        } else {
+            for entry in source.path.read_dir()?.filter_map(|e| e.ok()) {
+                if let Some(track) = make_track(
+                    entry.file_type().ok(),
+                    entry.file_name().to_string_lossy().to_string(),
+                    entry.path(),
+                ) {
                     tracks.push(track);
                 }
             }
         }
-        //}
     }
 
     tracks.sort();
@@ -175,8 +186,7 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
     return Ok(tracks.clone());
 }
 
-fn get_track_from_direntry(direntry: DirEntry) -> Option<Track> {
-    let filetype = direntry.file_type().ok();
+fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Option<Track> {
     if let None = filetype {
         return None;
     }
@@ -184,13 +194,10 @@ fn get_track_from_direntry(direntry: DirEntry) -> Option<Track> {
         return None;
     }
 
-    let filename = direntry.file_name();
-    let filename = filename.to_string_lossy();
-    let path = direntry.path();
     let file_ext = path.extension().map(|s| s.to_str()).flatten().unwrap_or("");
     let file_ext_with_dot = format!(".{file_ext}");
 
-    let (album, artist, track_name, duration) = get_audio_metadata(&direntry, &file_ext)
+    let (album, artist, track_name, duration) = get_audio_metadata(&path, &file_ext)
         .unwrap_or_else(|_err| {
             let track_name = filename.to_string().replace(&file_ext_with_dot, "");
             return (Some(track_name), None, None, None);
@@ -201,16 +208,16 @@ fn get_track_from_direntry(direntry: DirEntry) -> Option<Track> {
         album,
         artist,
         duration: duration.map(|t| t.seconds),
-        path: direntry.path(),
+        path: path.clone(),
         extension: file_ext.to_string(),
     });
 }
 
 fn get_audio_metadata(
-    file: &DirEntry,
+    path: &PathBuf,
     file_ext: &str,
 ) -> Result<(Option<String>, Option<String>, Option<String>, Option<Time>), Error> {
-    let source = File::open(file.path())?;
+    let source = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(source), Default::default());
     let mut hint = Hint::new();
     hint.with_extension(file_ext);
@@ -219,26 +226,6 @@ fn get_audio_metadata(
     let format_opts = FormatOptions::default();
     let mut probed =
         symphonia::default::get_probe().format(&hint, mss, &format_opts, &meta_opts)?;
-
-    let duration = {
-        let track = &probed.format.tracks().first();
-        if let Some(track) = track {
-            let params = &track.codec_params;
-            let n_frames = params.n_frames;
-            let time_base = params.time_base;
-            if let Some(n_frames) = n_frames {
-                if let Some(time_base) = time_base {
-                    Some(time_base.calc_time(n_frames))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    };
 
     let mut track_name = None;
     let mut album = None;
@@ -263,6 +250,24 @@ fn get_audio_metadata(
     } else if let Some(metadata_rev) = probed.metadata.get().as_ref().and_then(|m| m.current()) {
         get_tags(metadata_rev);
     }
+
+    // This assumes there is only one track per file. Some tracks have empty tracks with
+    // invalid metadata data before. This finds the first valid track, if it exists
+    let track = &probed
+        .format
+        .tracks()
+        .iter()
+        .find(|t| t.codec_params.n_frames.is_some() && t.codec_params.time_base.is_some());
+    let duration = {
+        if let Some(track) = track {
+            let params = &track.codec_params;
+            let n_frames = params.n_frames.unwrap();
+            let time_base = params.time_base.unwrap();
+            Some(time_base.calc_time(n_frames))
+        } else {
+            None
+        }
+    };
 
     return Ok((album, artist, track_name, duration));
 }

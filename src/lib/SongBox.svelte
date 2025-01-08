@@ -7,7 +7,7 @@
     } from './stores.svelte'
     import type { Track } from './types'
     import { emit } from '@tauri-apps/api/event'
-    import { QUEUE_TRACK } from '$lib/events'
+    import { PLAY_PARALLEL, QUEUE_TRACK } from '$lib/events'
     import ContextMenu from './ContextMenu.svelte'
     import { Plus } from 'lucide-svelte'
 
@@ -20,8 +20,6 @@
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
     let contextMenuY = $state(0)
-
-    $inspect(showContextMenu)
 
     function handleContextMenu(event: MouseEvent) {
         event.preventDefault()
@@ -47,10 +45,21 @@
             })
         }
     }
+
+    async function playParallel(looping: boolean) {
+        if (!playerState.offline) {
+            await emit(PLAY_PARALLEL, {
+                guildId: globalGuild.id,
+                trackData: track,
+                volume: playerState.volume,
+                looping
+            })
+        }
+    }
 </script>
 
 <button
-    class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
+    class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
     onclick={async () => await addToQueue(true)}
     oncontextmenu={handleContextMenu}
 >
@@ -70,6 +79,16 @@
                 Icon: Plus,
                 label: 'Add to queue',
                 onclick: async () => await addToQueue(false)
+            },
+            {
+                Icon: Plus,
+                label: 'Play overlayed',
+                onclick: async () => await playParallel(false)
+            },
+            {
+                Icon: Plus,
+                label: 'Play overlayed (looping)',
+                onclick: async () => await playParallel(true)
             }
         ]}
     />

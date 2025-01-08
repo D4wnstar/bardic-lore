@@ -24,6 +24,12 @@ export const LEAVE_VOICE_CHANNEL = 'leave-voice-channel'
  */
 export const QUEUE_TRACK = 'queue-track'
 /**
+ * This event tells the bot to play a track on top of existing ones.
+ * It will not be added to the queue. The payload must include the guild ID
+ * and a Track object.
+ */
+export const PLAY_PARALLEL = 'play-parallel'
+/**
  * This event tells the bot to resume playback of its queue.
  * If playback is not paused or the queue is empty, it does nothing.
  * The payload must include the guild ID.

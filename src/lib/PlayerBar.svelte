@@ -117,8 +117,6 @@
     let fmtProgress = $derived(formatSeconds(playerState.position))
     let fmtDuration = $derived(formatSeconds(duration))
 
-    $inspect(playerState.volume)
-
     // Interval IDs are kept in an array just in case something bugs out
     // so that it won't overwrite the previous ID and leave an eternal leaked
     // interval

@@ -93,8 +93,6 @@
             name="recursive"
             bind:checked={recursive}
             onCheckedChange={(state) => {
-                console.log($state.snapshot(recursive))
-                console.log(state.currentTarget.checked)
                 updateAudioSource(
                     source.path,
                     source.path,

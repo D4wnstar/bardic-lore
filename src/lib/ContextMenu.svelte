@@ -57,7 +57,7 @@
     >
         {#each items as item}
             <button
-                class="p-2 hover:bg-surface-200-800 flex gap-2"
+                class="p-2 hover:bg-surface-200-800 rounded-md flex gap-2 w-full"
                 onclick={() => {
                     item.onclick()
                     onclose()

@@ -20,9 +20,12 @@ pub const JOIN_VOICE_CHANNEL: &str = "join-voice-channel";
 /// it is currently in. The payload must include the guild ID.
 pub const LEAVE_VOICE_CHANNEL: &str = "leave-voice-channel";
 /// This event tells the bot to add a track to the queue.
-/// The payload must include the filepath of the file to play and
-/// the guild ID.
+/// The payload must include the guild ID and a Track object.
 pub const QUEUE_TRACK: &str = "queue-track";
+/// This event tells the bot to play a track on top of existing ones.
+/// It will not be added to the queue. The payload must include the guild ID
+/// and a Track object.
+pub const PLAY_PARALLEL: &str = "play-parallel";
 /// This event tells the bot to resume playback of its queue.
 /// If playback is not paused or the queue is empty, it does nothing.
 /// The payload must include the guild ID.
@@ -97,6 +100,14 @@ pub struct QueueTrackPayload {
     pub guildId: GuildId,
     pub prepend: bool,
     pub overwrite: bool,
+    pub trackData: Track,
+    pub looping: bool,
+    pub volume: f32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PlayParallelPayload {
+    pub guildId: GuildId,
     pub trackData: Track,
     pub looping: bool,
     pub volume: f32,

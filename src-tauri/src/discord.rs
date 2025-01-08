@@ -18,10 +18,11 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
     events::{
-        GuildChannelIdPayload, GuildIdPayload, QueueActionPayload, QueueTrackPayload, BOT_ERROR,
-        CHANGE_VOLUME, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE,
-        PAUSE_PLAYBACK, QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED,
-        TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
+        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueActionPayload,
+        QueueTrackPayload, BOT_ERROR, CHANGE_VOLUME, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL,
+        LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK, PLAY_PARALLEL, QUEUE_TRACK, RESUME_PLAYBACK,
+        SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE,
+        TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
     },
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
@@ -100,6 +101,14 @@ impl EventHandler for Handler {
             let (manager, app) = clone_boilerplate(&manager1, &app1);
             tokio::spawn(async move {
                 queue_track(ev, &manager, &app).await;
+            });
+        });
+
+        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        self.app.listen(PLAY_PARALLEL, move |ev| {
+            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            tokio::spawn(async move {
+                play_parallel(ev, &manager, &app).await;
             });
         });
 
@@ -407,6 +416,21 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
             json!({})
         };
         app.emit(UPDATE_PLAYER, response).unwrap();
+    } else {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+    };
+}
+
+async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+    let payload: PlayParallelPayload = serde_json::from_str(ev.payload()).unwrap();
+    if let Some(handler_lock) = manager.get(payload.guildId) {
+        let mut handler = handler_lock.lock().await;
+        let mut track: Track = songbird::input::File::new(payload.trackData.path).into();
+        track.volume = payload.volume;
+        if payload.looping {
+            track = track.loops(LoopState::Infinite);
+        }
+        handler.play(track);
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
