@@ -6,9 +6,7 @@
     import type { Track } from '$lib/types'
     import {
         playerState,
-        recentlyPlayed,
         toOverwrite,
-        trackQueue,
         TRACKS_FILENAME,
         TRACKS_SETTING
     } from '$lib/stores.svelte'
@@ -64,47 +62,62 @@
         unlisten.push(unlisten1)
 
         let unlisten2 = await listen<any>(TRACK_PLAYED, (ev) => {
-            playerState.playing = true
+            if (ev.payload['is_parallel'] === false) {
+                playerState.playing = true
+            }
         })
         unlisten.push(unlisten2)
 
         let unlisten3 = await listen<any>(TRACK_PAUSED, (ev) => {
-            playerState.playing = false
+            if (ev.payload['is_parallel'] === false) {
+                playerState.playing = false
+            }
         })
         unlisten.push(unlisten3)
 
-        let unlisten4 = await listen<any>(TRACK_ENDED, (_ev) => {
+        let unlisten4 = await listen<any>(TRACK_ENDED, (ev) => {
+            let isParallel = ev.payload['is_parallel'] as boolean
+            let trackPath = ev.payload['path'] as string
+
+            if (isParallel) {
+                return
+            }
+
             // If there is a track to overwrite, overwrite the current track
             // otherwise push to the end of queue
             let ended_track: Track | undefined
-            if (toOverwrite.track && trackQueue.tracks[0]) {
-                ended_track = trackQueue.tracks[0]
-                trackQueue.tracks[0] = toOverwrite.track
+            if (toOverwrite.track && playerState.trackQueue[0]) {
+                ended_track = playerState.trackQueue[0]
+                playerState.trackQueue[0] = toOverwrite.track
             } else {
-                ended_track = trackQueue.tracks.shift()
+                ended_track = playerState.trackQueue.shift()
             }
             toOverwrite.track = undefined
 
             // Reset position
             playerState.position = 0
             // Make sure to sync play state if queue is now empty
-            if (trackQueue.tracks.length === 0) {
+            if (playerState.trackQueue.length === 0) {
                 playerState.playing = false
             }
             // Update recent tracks if anything was removed
             if (ended_track) {
-                recentlyPlayed.tracks.unshift(ended_track)
+                playerState.recentlyPlayed.unshift(ended_track)
             }
         })
         unlisten.push(unlisten4)
 
-        let unlisten5 = await listen<any>(TRACK_LOOPED, (_ev) => {
-            playerState.position = 0
+        let unlisten5 = await listen<any>(TRACK_LOOPED, (ev) => {
+            if (ev.payload['is_parallel'] === false) {
+                playerState.position = 0
+            }
         })
         unlisten.push(unlisten5)
 
-        let unlisten6 = await listen<any>(TRACK_PLAYABLE, (_ev) => {
-            playerState.playing = true
+        let unlisten6 = await listen<any>(TRACK_PLAYABLE, (ev) => {
+            if (ev.payload['is_parallel'] === false) {
+                playerState.playing = true
+            }
         })
         unlisten.push(unlisten6)
 

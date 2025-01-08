@@ -40,9 +40,6 @@ export const DISCORD_FILENAME = 'discord.json'
 export const GUILDS_SETTING = 'guilds'
 
 /* SVELTE STATE */
-export type TrackQueue = {
-    tracks: Track[]
-}
 export type MaybeTrack = {
     track: Track | undefined
 }
@@ -54,16 +51,13 @@ export type PlayerState = {
     looping: boolean
     offline: boolean
     mute: boolean
+    trackQueue: Track[]
+    recentlyPlayed: Track[]
+    parallelTracks: Track[]
 }
 
 export const globalGuild = $state({
     id: 0
-})
-export const trackQueue: TrackQueue = $state({
-    tracks: []
-})
-export const recentlyPlayed: TrackQueue = $state({
-    tracks: []
 })
 export const toOverwrite: MaybeTrack = $state({ track: undefined })
 export const playerState: PlayerState = $state({
@@ -72,5 +66,8 @@ export const playerState: PlayerState = $state({
     volume: 1.0,
     looping: false,
     offline: true,
-    mute: false
+    mute: false,
+    trackQueue: [],
+    recentlyPlayed: [],
+    parallelTracks: []
 })

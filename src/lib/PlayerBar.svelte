@@ -9,12 +9,7 @@
         Volume2,
         VolumeX
     } from 'lucide-svelte'
-    import {
-        globalGuild,
-        trackQueue,
-        playerState,
-        recentlyPlayed
-    } from './stores.svelte'
+    import { globalGuild, playerState } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
     import {
         CHANGE_VOLUME,
@@ -48,21 +43,21 @@
 
     async function handleBackSkip() {
         // If the queue is empty, do nothing
-        if (trackQueue.tracks.length === 0) {
+        if (playerState.trackQueue.length === 0) {
             return
         }
 
         if (
             playerState.position >= 5 /* seconds */ ||
-            !recentlyPlayed.tracks[0]
+            !playerState.recentlyPlayed[0]
         ) {
             await emit(SEEK_TRACK, { guildId: globalGuild.id, position: 0 })
         } else {
             // Get previous track, if any
             // Remove previous track from recents
             // Prepend previous track to queue
-            const mostRecent = recentlyPlayed.tracks.shift() as Track
-            trackQueue.tracks.unshift(mostRecent)
+            const mostRecent = playerState.recentlyPlayed.shift() as Track
+            playerState.trackQueue.unshift(mostRecent)
             await emit(QUEUE_TRACK, {
                 guildId: globalGuild.id,
                 trackData: mostRecent,
@@ -112,7 +107,7 @@
         getComputedStyle(document.body).getPropertyValue('--color-primary-400')
     )
 
-    let duration = $derived(trackQueue.tracks[0]?.duration ?? 60)
+    let duration = $derived(playerState.trackQueue[0]?.duration ?? 60)
 
     let fmtProgress = $derived(formatSeconds(playerState.position))
     let fmtDuration = $derived(formatSeconds(duration))
@@ -202,7 +197,7 @@
                 />
             </button>
             <p class="type-scale-2 opacity-70">
-                {#if trackQueue.tracks[0]}{fmtDuration}{:else}0:00{/if}
+                {#if playerState.trackQueue[0]}{fmtDuration}{:else}0:00{/if}
             </p>
         </div>
         <!-- Volume slider -->

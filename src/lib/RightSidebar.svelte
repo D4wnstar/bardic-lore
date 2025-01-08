@@ -3,9 +3,10 @@
     import Queue from './right-sidebar-tabs/Queue.svelte'
     import { fade, slide } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
+    import CurrentlyPlaying from './right-sidebar-tabs/CurrentlyPlaying.svelte'
 
     let visible = $state(true)
-    let tabIndex = $state(1)
+    let tabIndex = $state(2)
 
     let minWidth = $state(300)
 
@@ -61,7 +62,7 @@
             {#if tabIndex === 1}
                 <Queue />
             {:else if tabIndex === 2}
-                <h3 class="h3">Currently playing</h3>
+                <CurrentlyPlaying />
             {/if}
         </div>
     {/if}

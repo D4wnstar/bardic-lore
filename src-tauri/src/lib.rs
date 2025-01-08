@@ -1,6 +1,7 @@
 mod discord;
 mod events;
 mod files;
+mod parallel;
 mod stores;
 
 use discord::IsSerenityClientOn;

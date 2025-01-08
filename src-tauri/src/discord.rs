@@ -1,14 +1,20 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serenity::{
     all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId},
     async_trait,
+    prelude::TypeMapKey,
 };
 
-use reqwest::Client as HttpClient;
 use songbird::{
+    events::EventData,
     tracks::{LoopState, Track},
     EventContext, EventHandler as VoiceEventHandler, SerenityInit, Songbird, TrackEvent,
 };
@@ -24,6 +30,8 @@ use crate::{
         SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE,
         TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
     },
+    files::Track as TrackData,
+    parallel::{Parallel, ParallelTracks},
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
 };
@@ -57,9 +65,14 @@ impl PartialEq for VoiceChannelSlug {
     }
 }
 
+struct ParallelKey;
+
+impl TypeMapKey for ParallelKey {
+    type Value = ParallelTracks;
+}
+
 pub struct Handler {
     app: AppHandle,
-    http_client: HttpClient,
 }
 
 #[async_trait]
@@ -105,10 +118,12 @@ impl EventHandler for Handler {
         });
 
         let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let ctx1 = Arc::new(ctx);
         self.app.listen(PLAY_PARALLEL, move |ev| {
             let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let ctx = Arc::clone(&ctx1);
             tokio::spawn(async move {
-                play_parallel(ev, &manager, &app).await;
+                play_parallel(ev, &manager, &app, &ctx).await;
             });
         });
 
@@ -223,10 +238,8 @@ pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
     let value = store.get(BOT_TOKEN_SETTING).unwrap_or("".into());
     let token: String = serde_json::from_value(value)?;
     let mut ds_client = serenity::Client::builder(token, GatewayIntents::non_privileged())
-        .event_handler(Handler {
-            app: app.clone(),
-            http_client: reqwest::Client::new(),
-        })
+        .event_handler(Handler { app: app.clone() })
+        .type_map_insert::<ParallelKey>(ParallelTracks::new())
         .register_songbird()
         .await?;
 
@@ -247,107 +260,11 @@ pub async fn is_bot_connected(app: AppHandle) -> bool {
     return client_exists_mutex.lock().await.0;
 }
 
-/* EVENT HANDLERS */
-struct RelayTrackEnd {
-    app: AppHandle,
-}
-
-#[async_trait]
-impl VoiceEventHandler for RelayTrackEnd {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
-        self.app
-            .emit(TRACK_ENDED, ())
-            .expect(&format!("Couldn't emit {TRACK_ENDED} event"));
-        return None;
-    }
-}
-
-struct RelayTrackLoop {
-    app: AppHandle,
-}
-
-#[async_trait]
-impl VoiceEventHandler for RelayTrackLoop {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
-        self.app
-            .emit(TRACK_LOOPED, ())
-            .expect(&format!("Couldn't emit {TRACK_LOOPED} event"));
-        return None;
-    }
-}
-
-struct RelayTrackPlayable {
-    app: AppHandle,
-}
-
-#[async_trait]
-impl VoiceEventHandler for RelayTrackPlayable {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
-        self.app
-            .emit(TRACK_PLAYABLE, ())
-            .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
-        return None;
-    }
-}
-
-struct RelayTrackPlay {
-    app: AppHandle,
-}
-
-#[async_trait]
-impl VoiceEventHandler for RelayTrackPlay {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
-        self.app
-            .emit(TRACK_PLAYED, ())
-            .expect(&format!("Couldn't emit {TRACK_PLAYED} event"));
-        return None;
-    }
-}
-
-struct RelayTrackPause {
-    app: AppHandle,
-}
-
-#[async_trait]
-impl VoiceEventHandler for RelayTrackPause {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
-        self.app
-            .emit(TRACK_PAUSED, ())
-            .expect(&format!("Couldn't emit {TRACK_PAUSED} event"));
-        return None;
-    }
-}
-
 /* EVENT CALLBACKS */
 async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
     let payload: GuildChannelIdPayload = serde_json::from_str(ev.payload()).unwrap();
     if let Err(err) = manager.join(payload.guildId, payload.channelId).await {
         print_emit_error(BOT_ERROR, &format!("Failed to join channel. {err}"), &app);
-    } else {
-        let handler_lock = manager.get(payload.guildId).unwrap();
-        let mut handler = handler_lock.lock().await;
-
-        // Add event handlers so that TrackEvents also fire Tauri events
-        handler.add_global_event(
-            songbird::Event::Track(TrackEvent::End),
-            RelayTrackEnd { app: app.clone() },
-        );
-        handler.add_global_event(
-            songbird::Event::Track(TrackEvent::Loop),
-            RelayTrackLoop { app: app.clone() },
-        );
-        handler.add_global_event(
-            songbird::Event::Track(TrackEvent::Playable),
-            RelayTrackPlayable { app: app.clone() },
-        );
-        handler.add_global_event(
-            songbird::Event::Track(TrackEvent::Play),
-            RelayTrackPlay { app: app.clone() },
-        );
-        handler.add_global_event(
-            songbird::Event::Track(TrackEvent::Pause),
-            RelayTrackPause { app: app.clone() },
-        );
     };
 }
 
@@ -370,11 +287,12 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
     let payload: QueueTrackPayload = serde_json::from_str(ev.payload()).unwrap();
     if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
-        let mut track: Track = songbird::input::File::new(payload.trackData.path).into();
+        let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
         track.volume = payload.volume;
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
+        add_trackevent_relays(&app, &mut track, &payload.trackData.path, false);
 
         let response = if payload.overwrite {
             // Unfortunately, the Queued type has private fields so I can't
@@ -421,16 +339,27 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
     };
 }
 
-async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle, ctx: &Context) {
     let payload: PlayParallelPayload = serde_json::from_str(ev.payload()).unwrap();
     if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
-        let mut track: Track = songbird::input::File::new(payload.trackData.path).into();
+        let parallel_tracks = {
+            let typemap = ctx.data.read().await;
+            typemap
+                .get::<ParallelKey>()
+                .expect("Guaranteed to exist")
+                .clone()
+        };
+
+        let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
         track.volume = payload.volume;
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
-        handler.play(track);
+        add_trackevent_relays(&app, &mut track, &payload.trackData.path, true);
+
+        handler.add_parallel_track(track, &parallel_tracks);
+        // handler.play(track);
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
@@ -593,4 +522,162 @@ fn clone_boilerplate(manager: &Arc<Songbird>, app: &AppHandle) -> (Arc<Songbird>
     let manager1 = Arc::clone(manager);
     let app1 = app.clone();
     return (manager1, app1);
+}
+
+/// Add event handlers to a `Track` so that `TrackEvents` also fire Tauri events.
+/// This allows the rest of the Tauri app to "see" the `TrackEvents` in real time.
+/// These are not added as global events because only main queue tracks should fire
+/// these. Parallel tracks behave differently.
+fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_parallel: bool) {
+    track.events.add_event(
+        EventData::new(
+            songbird::Event::Track(TrackEvent::End),
+            RelayTrackEnd {
+                app: app.clone(),
+                is_parallel,
+                path: path.to_path_buf(),
+            },
+        ),
+        Duration::ZERO,
+    );
+    track.events.add_event(
+        EventData::new(
+            songbird::Event::Track(TrackEvent::Loop),
+            RelayTrackLoop {
+                app: app.clone(),
+                is_parallel,
+                path: path.to_path_buf(),
+            },
+        ),
+        Duration::ZERO,
+    );
+    track.events.add_event(
+        EventData::new(
+            songbird::Event::Track(TrackEvent::Playable),
+            RelayTrackPlayable {
+                app: app.clone(),
+                is_parallel,
+                path: path.to_path_buf(),
+            },
+        ),
+        Duration::ZERO,
+    );
+    track.events.add_event(
+        EventData::new(
+            songbird::Event::Track(TrackEvent::Play),
+            RelayTrackPlay {
+                app: app.clone(),
+                is_parallel,
+                path: path.to_path_buf(),
+            },
+        ),
+        Duration::ZERO,
+    );
+    track.events.add_event(
+        EventData::new(
+            songbird::Event::Track(TrackEvent::Pause),
+            RelayTrackPause {
+                app: app.clone(),
+                is_parallel,
+                path: path.to_path_buf(),
+            },
+        ),
+        Duration::ZERO,
+    );
+}
+
+/* EVENT HANDLERS */
+struct RelayTrackEnd {
+    app: AppHandle,
+    is_parallel: bool,
+    path: PathBuf,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackEnd {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(
+                TRACK_ENDED,
+                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+            )
+            .expect(&format!("Couldn't emit {TRACK_ENDED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackLoop {
+    app: AppHandle,
+    is_parallel: bool,
+    path: PathBuf,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackLoop {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(
+                TRACK_LOOPED,
+                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+            )
+            .expect(&format!("Couldn't emit {TRACK_LOOPED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackPlayable {
+    app: AppHandle,
+    is_parallel: bool,
+    path: PathBuf,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPlayable {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(
+                TRACK_PLAYABLE,
+                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+            )
+            .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
+        return None;
+    }
+}
+
+struct RelayTrackPlay {
+    app: AppHandle,
+    is_parallel: bool,
+    path: PathBuf,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPlay {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(
+                TRACK_PLAYED,
+                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+            )
+            .expect(&format!("Couldn't emit {TRACK_PLAYED} event"));
+        return None;
+    }
+}
+
+struct RelayTrackPause {
+    app: AppHandle,
+    is_parallel: bool,
+    path: PathBuf,
+}
+
+#[async_trait]
+impl VoiceEventHandler for RelayTrackPause {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<songbird::Event> {
+        self.app
+            .emit(
+                TRACK_PAUSED,
+                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+            )
+            .expect(&format!("Couldn't emit {TRACK_PAUSED} event"));
+        return None;
+    }
 }
