@@ -6,11 +6,10 @@
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         BOT_TOKEN_SETTING,
-        globalGuild,
         DISCORD_FILENAME,
         GUILDS_SETTING,
         SETTINGS_FILENAME,
-        playerState
+        appState
     } from '$lib/stores.svelte'
     import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
@@ -119,8 +118,8 @@
         }
 
         // Update the guild ID store
-        globalGuild.id = guild.id
-        playerState.offline = guild.offline
+        appState.guildId = guild.id
+        appState.offline = guild.offline
 
         // Update voice channels for the UI
         for (const currGuild of guilds) {

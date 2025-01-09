@@ -40,34 +40,45 @@ export const DISCORD_FILENAME = 'discord.json'
 export const GUILDS_SETTING = 'guilds'
 
 /* SVELTE STATE */
-export type MaybeTrack = {
-    track: Track | undefined
-}
-
 export type PlayerState = {
     playing: boolean
     position: number
     volume: number
     looping: boolean
-    offline: boolean
     mute: boolean
-    trackQueue: Track[]
-    recentlyPlayed: Track[]
-    parallelTracks: Track[]
 }
 
-export const globalGuild = $state({
-    id: 0
-})
-export const toOverwrite: MaybeTrack = $state({ track: undefined })
-export const playerState: PlayerState = $state({
-    playing: false,
-    position: 0,
-    volume: 1.0,
-    looping: false,
+export type ParallelState = {
+    track: Track
+    player: PlayerState
+}
+
+export type AppState = {
+    guildId: number
+    mainPlayer: PlayerState
+    offline: boolean
+    trackQueue: Track[]
+    recentlyPlayed: Track[]
+    parallelTracks: ParallelState[]
+}
+
+export const appState: AppState = $state({
+    guildId: 0,
     offline: true,
-    mute: false,
+    mainPlayer: {
+        playing: false,
+        position: 0,
+        volume: 0.5,
+        looping: false,
+        mute: false
+    },
     trackQueue: [],
     recentlyPlayed: [],
     parallelTracks: []
 })
+
+/**
+ * Used to skip removing the current track on the next TRACK_ENDED signal.
+ * Will be set to false on the next TRACK_ENDED.
+ */
+export const skipRemoveOnEnd = $state({ skip: false })

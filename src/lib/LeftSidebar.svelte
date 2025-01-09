@@ -77,7 +77,10 @@
     </div>
 
     {#if visible}
-        <div transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}>
+        <div
+            class="overflow-x-auto"
+            transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}
+        >
             {#if tabIndex === 1}
                 <Tags />
             {:else if tabIndex === 2}

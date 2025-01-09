@@ -1,9 +1,4 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -21,17 +16,17 @@ use songbird::{
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Mutex as AsyncMutex;
+use uuid::Uuid;
 
 use crate::{
     events::{
-        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueActionPayload,
-        QueueTrackPayload, BOT_ERROR, CHANGE_VOLUME, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL,
-        LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK, PLAY_PARALLEL, QUEUE_TRACK, RESUME_PLAYBACK,
-        SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE,
-        TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
+        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueTrackPayload,
+        TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME, JOIN_VOICE_CHANNEL,
+        LEAVE_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK, PLAY_PARALLEL, QUEUE_TRACK,
+        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, STOP_TRACK, TRACK_ENDED, TRACK_LOOPED,
+        TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
     },
-    files::Track as TrackData,
-    parallel::{Parallel, ParallelTracks},
+    parallel::ParallelTracks,
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
 };
@@ -88,96 +83,139 @@ impl EventHandler for Handler {
         let manager = songbird::get(&ctx)
             .await
             .expect("Failed to get Songbird manager");
+        let ctx = Arc::new(ctx);
 
         // Each callback needs to have ownership of whatever it uses since it outlives this functions
         // The need for a tokio::spawn to permit await calls causes annoying double-cloning of Arcs
         // because they need to be moved twice (first in the callback, then in the tokio async task)
         // Performance isn't a concern for these callbacks, but it's just kind of ugly
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(JOIN_VOICE_CHANNEL, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
                 join_voice_channel(ev, &manager, &app).await;
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(LEAVE_VOICE_CHANNEL, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
                 leave_voice_channel(ev, &manager, &app).await;
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(QUEUE_TRACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
                 queue_track(ev, &manager, &app).await;
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
-        let ctx1 = Arc::new(ctx);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(PLAY_PARALLEL, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
             let ctx = Arc::clone(&ctx1);
             tokio::spawn(async move {
                 play_parallel(ev, &manager, &app, &ctx).await;
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(RESUME_PLAYBACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::Resume, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::Resume, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Resume, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(PAUSE_PLAYBACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::Pause, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::Pause, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Pause, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
+        self.app.listen(STOP_TRACK, move |ev| {
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
+            tokio::spawn(async move {
+                if payload.parallel {
+                    parallel_action(TrackAction::Stop, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Stop, payload, &manager, &app).await;
+                }
+            });
+        });
+
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(SKIP_TRACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::Skip, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::Skip, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Skip, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(LOOP_TRACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::Loop, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::Loop, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Loop, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(SEEK_TRACK, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::Seek, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::Seek, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::Seek, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(CHANGE_VOLUME, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
-                queue_action(QueueAction::ChangeVolume, ev, &manager, &app).await;
+                if payload.parallel {
+                    parallel_action(TrackAction::ChangeVolume, payload, &manager, &app, &ctx).await;
+                } else {
+                    queue_action(TrackAction::ChangeVolume, payload, &manager, &app).await;
+                }
             });
         });
 
-        let (manager1, app1) = clone_boilerplate(&manager, &self.app);
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(MUTE_UNMUTE, move |ev| {
-            let (manager, app) = clone_boilerplate(&manager1, &app1);
+            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move { mute_unmute(ev, &manager, &app).await });
         });
     }
@@ -292,7 +330,8 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
-        add_trackevent_relays(&app, &mut track, &payload.trackData.path, false);
+        add_trackevent_relays(&app, &mut track, false);
+        let uuid = track.uuid.clone();
 
         let response = if payload.overwrite {
             // Unfortunately, the Queued type has private fields so I can't
@@ -333,7 +372,27 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
             let _ = handler.enqueue(track).await;
             json!({})
         };
+
         app.emit(UPDATE_PLAYER, response).unwrap();
+        app.emit(
+            ADD_TRACK,
+            json!({
+                "track": {
+                    "uuid": uuid,
+                    "title": payload.trackData.title,
+                    "album": payload.trackData.album,
+                    "artist": payload.trackData.artist,
+                    "duration": payload.trackData.duration,
+                    "path": payload.trackData.path,
+                    "extension": payload.trackData.path
+                },
+                "parallel": false,
+                "overwrite": payload.overwrite,
+                "prepend": payload.prepend,
+                "looping": payload.looping,
+            }),
+        )
+        .unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
@@ -356,16 +415,36 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
         if payload.looping {
             track = track.loops(LoopState::Infinite);
         }
-        add_trackevent_relays(&app, &mut track, &payload.trackData.path, true);
+        add_trackevent_relays(&app, &mut track, true);
+        let uuid = track.uuid.clone();
 
-        handler.add_parallel_track(track, &parallel_tracks);
-        // handler.play(track);
+        parallel_tracks.add(track, &mut handler);
+
+        app.emit(
+            ADD_TRACK,
+            json!({
+                "track": {
+                    "uuid": uuid,
+                    "title": payload.trackData.title,
+                    "album": payload.trackData.album,
+                    "artist": payload.trackData.artist,
+                    "duration": payload.trackData.duration,
+                    "path": payload.trackData.path,
+                    "extension": payload.trackData.path
+                },
+                "parallel": true,
+                "overwrite": false,
+                "prepend": false,
+                "looping": payload.looping,
+            }),
+        )
+        .unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
     };
 }
 
-enum QueueAction {
+enum TrackAction {
     Resume,
     Pause,
     Skip,
@@ -376,12 +455,11 @@ enum QueueAction {
 }
 
 async fn queue_action(
-    action: QueueAction,
-    ev: tauri::Event,
+    action: TrackAction,
+    payload: TrackActionPayload,
     manager: &Arc<Songbird>,
     app: &AppHandle,
 ) {
-    let payload: QueueActionPayload = serde_json::from_str(ev.payload()).unwrap();
     let maybe_handler = manager.get(payload.guildId);
     if let None = maybe_handler {
         print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
@@ -393,34 +471,34 @@ async fn queue_action(
     let queue = handler.queue();
 
     let msg_str = match action {
-        QueueAction::Resume => "resume",
-        QueueAction::Pause => "pause",
-        QueueAction::Skip => "skip",
-        QueueAction::Stop => "stop",
-        QueueAction::Loop => "activate loop for",
-        QueueAction::Seek => "seek",
-        QueueAction::ChangeVolume => "change volume",
+        TrackAction::Resume => "resume",
+        TrackAction::Pause => "pause",
+        TrackAction::Skip => "skip",
+        TrackAction::Stop => "stop",
+        TrackAction::Loop => "activate loop for",
+        TrackAction::Seek => "seek",
+        TrackAction::ChangeVolume => "change volume",
     };
     // Most of these are handled automatically by the TrackEvent relays
     let response_event = match action {
-        QueueAction::Resume => None,
-        QueueAction::Pause => None,
-        QueueAction::Skip => None,
-        QueueAction::Stop => None,
-        QueueAction::Loop => None,
-        QueueAction::Seek => Some(UPDATE_PLAYER),
-        QueueAction::ChangeVolume => None,
+        TrackAction::Resume => None,
+        TrackAction::Pause => None,
+        TrackAction::Skip => None,
+        TrackAction::Stop => None,
+        TrackAction::Loop => None,
+        TrackAction::Seek => Some(UPDATE_PLAYER),
+        TrackAction::ChangeVolume => None,
     };
 
     let result = match action {
-        QueueAction::Resume => Some((queue.resume(), json!({}))),
-        QueueAction::Pause => Some((queue.pause(), json!({}))),
-        QueueAction::Skip => Some((queue.skip(), json!({}))),
-        QueueAction::Stop => {
+        TrackAction::Resume => Some((queue.resume(), json!({}))),
+        TrackAction::Pause => Some((queue.pause(), json!({}))),
+        TrackAction::Skip => Some((queue.skip(), json!({}))),
+        TrackAction::Stop => {
             queue.stop();
             None
         }
-        QueueAction::Loop => {
+        TrackAction::Loop => {
             if let Some(track) = queue.current() {
                 let maybe_info = track.get_info().await;
                 if let Err(err) = maybe_info {
@@ -440,7 +518,7 @@ async fn queue_action(
                 None
             }
         }
-        QueueAction::Seek => {
+        TrackAction::Seek => {
             if let Some(curr_track) = queue.current() {
                 if let Some(position) = payload.position {
                     let time = Duration::from_secs(position);
@@ -455,7 +533,7 @@ async fn queue_action(
                 None
             }
         }
-        QueueAction::ChangeVolume => {
+        TrackAction::ChangeVolume => {
             let volume = payload
                 .volume
                 .expect("Volume change event should have volume as payload");
@@ -485,6 +563,55 @@ async fn queue_action(
         }
         None => (),
     }
+}
+
+async fn parallel_action(
+    action: TrackAction,
+    payload: TrackActionPayload,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+    ctx: &Context,
+) {
+    let maybe_handler = manager.get(payload.guildId);
+    if let None = maybe_handler {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        return;
+    };
+    let uuid = Uuid::parse_str(
+        &payload
+            .uuid
+            .expect("UUID must be present to modify parallel track"),
+    )
+    .unwrap();
+
+    // let lock = maybe_handler.unwrap();
+    // let handler = lock.lock().await;
+
+    let data = ctx.data.read().await;
+    let parallel = data.get::<ParallelKey>().expect("Guaranteed to exist");
+
+    match action {
+        TrackAction::Resume => parallel.resume(uuid),
+        TrackAction::Pause => parallel.pause(uuid),
+        TrackAction::Stop => parallel.stop(uuid),
+        TrackAction::Loop => {
+            if let Some(handle) = parallel.get_handle(uuid) {
+                if let Ok(info) = handle.get_info().await {
+                    drop(match info.loops {
+                        LoopState::Infinite => handle.disable_loop(),
+                        LoopState::Finite(_) => handle.enable_loop(),
+                    });
+                }
+            }
+        }
+        TrackAction::Seek => {
+            let position = Duration::from_secs(payload.position.unwrap());
+            if let Some(track) = parallel.get_handle(uuid) {
+                drop(track.seek_async(position).await);
+            }
+        }
+        _ => (),
+    };
 }
 
 async fn mute_unmute(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
@@ -518,24 +645,29 @@ fn print_emit_error(ev_name: &str, error_msg: &str, app: &AppHandle) {
 }
 
 /// Clone some references to have them moved into callbacks/tasks.
-fn clone_boilerplate(manager: &Arc<Songbird>, app: &AppHandle) -> (Arc<Songbird>, AppHandle) {
+fn clone_boilerplate(
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+    ctx: &Arc<Context>,
+) -> (Arc<Songbird>, AppHandle, Arc<Context>) {
     let manager1 = Arc::clone(manager);
     let app1 = app.clone();
-    return (manager1, app1);
+    let ctx1 = Arc::clone(ctx);
+    return (manager1, app1, ctx1);
 }
 
 /// Add event handlers to a `Track` so that `TrackEvents` also fire Tauri events.
 /// This allows the rest of the Tauri app to "see" the `TrackEvents` in real time.
 /// These are not added as global events because only main queue tracks should fire
 /// these. Parallel tracks behave differently.
-fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_parallel: bool) {
+fn add_trackevent_relays(app: &AppHandle, track: &mut Track, is_parallel: bool) {
     track.events.add_event(
         EventData::new(
             songbird::Event::Track(TrackEvent::End),
             RelayTrackEnd {
                 app: app.clone(),
                 is_parallel,
-                path: path.to_path_buf(),
+                uuid: track.uuid.to_string(),
             },
         ),
         Duration::ZERO,
@@ -546,7 +678,7 @@ fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_
             RelayTrackLoop {
                 app: app.clone(),
                 is_parallel,
-                path: path.to_path_buf(),
+                uuid: track.uuid.to_string(),
             },
         ),
         Duration::ZERO,
@@ -557,7 +689,7 @@ fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_
             RelayTrackPlayable {
                 app: app.clone(),
                 is_parallel,
-                path: path.to_path_buf(),
+                uuid: track.uuid.to_string(),
             },
         ),
         Duration::ZERO,
@@ -568,7 +700,7 @@ fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_
             RelayTrackPlay {
                 app: app.clone(),
                 is_parallel,
-                path: path.to_path_buf(),
+                uuid: track.uuid.to_string(),
             },
         ),
         Duration::ZERO,
@@ -579,7 +711,7 @@ fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_
             RelayTrackPause {
                 app: app.clone(),
                 is_parallel,
-                path: path.to_path_buf(),
+                uuid: track.uuid.to_string(),
             },
         ),
         Duration::ZERO,
@@ -587,10 +719,11 @@ fn add_trackevent_relays(app: &AppHandle, track: &mut Track, path: &PathBuf, is_
 }
 
 /* EVENT HANDLERS */
+// The common JSON schema for all of these is defined in src/lib/events.ts in the frontend
 struct RelayTrackEnd {
     app: AppHandle,
     is_parallel: bool,
-    path: PathBuf,
+    uuid: String,
 }
 
 #[async_trait]
@@ -599,7 +732,7 @@ impl VoiceEventHandler for RelayTrackEnd {
         self.app
             .emit(
                 TRACK_ENDED,
-                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+                json!({ "isParallel": self.is_parallel, "uuid": self.uuid }),
             )
             .expect(&format!("Couldn't emit {TRACK_ENDED} event"));
         return None;
@@ -609,7 +742,7 @@ impl VoiceEventHandler for RelayTrackEnd {
 struct RelayTrackLoop {
     app: AppHandle,
     is_parallel: bool,
-    path: PathBuf,
+    uuid: String,
 }
 
 #[async_trait]
@@ -618,7 +751,7 @@ impl VoiceEventHandler for RelayTrackLoop {
         self.app
             .emit(
                 TRACK_LOOPED,
-                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+                json!({ "isParallel": self.is_parallel, "uuid": self.uuid }),
             )
             .expect(&format!("Couldn't emit {TRACK_LOOPED} event"));
         return None;
@@ -628,7 +761,7 @@ impl VoiceEventHandler for RelayTrackLoop {
 struct RelayTrackPlayable {
     app: AppHandle,
     is_parallel: bool,
-    path: PathBuf,
+    uuid: String,
 }
 
 #[async_trait]
@@ -637,7 +770,7 @@ impl VoiceEventHandler for RelayTrackPlayable {
         self.app
             .emit(
                 TRACK_PLAYABLE,
-                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+                json!({ "isParallel": self.is_parallel, "uuid": self.uuid }),
             )
             .expect(&format!("Couldn't emit {TRACK_PLAYABLE} event"));
         return None;
@@ -647,7 +780,7 @@ impl VoiceEventHandler for RelayTrackPlayable {
 struct RelayTrackPlay {
     app: AppHandle,
     is_parallel: bool,
-    path: PathBuf,
+    uuid: String,
 }
 
 #[async_trait]
@@ -656,7 +789,7 @@ impl VoiceEventHandler for RelayTrackPlay {
         self.app
             .emit(
                 TRACK_PLAYED,
-                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+                json!({ "isParallel": self.is_parallel, "uuid": self.uuid }),
             )
             .expect(&format!("Couldn't emit {TRACK_PLAYED} event"));
         return None;
@@ -666,7 +799,7 @@ impl VoiceEventHandler for RelayTrackPlay {
 struct RelayTrackPause {
     app: AppHandle,
     is_parallel: bool,
-    path: PathBuf,
+    uuid: String,
 }
 
 #[async_trait]
@@ -675,7 +808,7 @@ impl VoiceEventHandler for RelayTrackPause {
         self.app
             .emit(
                 TRACK_PAUSED,
-                json!({ "is_parallel": self.is_parallel, "path": self.path }),
+                json!({ "isParallel": self.is_parallel, "uuid": self.uuid }),
             )
             .expect(&format!("Couldn't emit {TRACK_PAUSED} event"));
         return None;

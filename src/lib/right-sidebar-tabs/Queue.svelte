@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Tabs } from '@skeletonlabs/skeleton-svelte'
     import QueuedTrack from './QueuedTrack.svelte'
-    import { playerState } from '$lib/stores.svelte'
+    import { appState } from '$lib/stores.svelte'
 
     let tabState = $state('queue')
 </script>
@@ -22,7 +22,7 @@
         {/snippet}
         {#snippet content()}
             <Tabs.Panel value="queue" classes="space-y-2 pb-5">
-                {#each playerState.trackQueue as track, idx}
+                {#each appState.trackQueue as track, idx}
                     {#if idx === 0}
                         <p class="pl-1 type-scale-3">
                             <strong>You are listening to</strong>
@@ -36,7 +36,7 @@
                 {/each}
             </Tabs.Panel>
             <Tabs.Panel value="recent" classes="space-y-2 pb-5">
-                {#each playerState.recentlyPlayed as track}
+                {#each appState.recentlyPlayed as track}
                     <QueuedTrack {track} />
                 {/each}
             </Tabs.Panel>

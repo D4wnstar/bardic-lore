@@ -5,6 +5,7 @@ export type AudioSource = {
 }
 
 export type Track = {
+    uuid: string
     title: string
     album: string | undefined
     artist: string | undefined

@@ -34,6 +34,10 @@ pub const RESUME_PLAYBACK: &str = "resume-playback";
 /// If playback is not playing or the queue is empty, it does nothing.
 /// The payload must include the guild ID.
 pub const PAUSE_PLAYBACK: &str = "pause-playback";
+/// This event tells the bot to stop the current track and delete the queue,
+/// unless it is a parallel track, in which case it only stops that track.
+/// The payload must include the guild ID.
+pub const STOP_TRACK: &str = "stop-track";
 /// This event tells the bot to skip the current track in the queue.
 /// The payload must include the guild ID.
 pub const SKIP_TRACK: &str = "skip-track";
@@ -59,12 +63,15 @@ pub const BOT_ERROR: &str = "bot-error";
 /// and the Tauri store was update to match.
 /// It is fired whenever the bot receives a GUILD_CREATE event.
 pub const UPDATED_GUILDS: &str = "updated-guilds";
-/// This event instructs the frontend to update the playerState $state rune
-/// using the information passed in the payload. The payload must be a `serde_json`
-/// `Value`, probably made with the `json!` macro. The frontend will update the
-/// fields in the $state based on which keys match. See src/lib/stores.svelte.ts
-/// for the data structure. Make sure the types are correct.
+/// This event instructs the frontend to update something related to the global
+/// appState using the information passed in the payload. The payload must be
+/// a `serde_json` `Value`, probably made with the `json!` macro. See
+/// src/lib/stores.svelte.ts for the data structure. Make sure the types are correct.
 pub const UPDATE_PLAYER: &str = "update-player";
+/// This event instructs the frontend to add the track given in the payload to
+/// either the main queue or the parallel tracks, depending on what the payload says.
+/// By track here we mean a `crate::files::Track`, not a serenity `Track`.
+pub const ADD_TRACK: &str = "add-track";
 
 /* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay
@@ -114,8 +121,10 @@ pub struct PlayParallelPayload {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct QueueActionPayload {
+pub struct TrackActionPayload {
     pub guildId: GuildId,
+    pub parallel: bool,
+    pub uuid: Option<String>,
     pub position: Option<u64>,
     pub volume: Option<f32>,
 }

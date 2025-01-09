@@ -1,6 +1,8 @@
 // This file contains events emitted by Tauri for communication, primarily
 // between the Discord bot and the UI to keep them synchronized.
 
+import type { Track } from './types'
+
 // All events should be written in kebab-case.
 // This file is a direct copy of src/events.rs file. If you need to add or change an event,
 // please change the Rust file too. The syntax between the two is the same except
@@ -19,8 +21,7 @@ export const JOIN_VOICE_CHANNEL = 'join-voice-channel'
 export const LEAVE_VOICE_CHANNEL = 'leave-voice-channel'
 /**
  * This event tells the bot to add a track to the queue.
- * The payload must include the filepath of the file to play and
- * the guild ID.
+ * The payload must include the guild ID and a Track object.
  */
 export const QUEUE_TRACK = 'queue-track'
 /**
@@ -41,6 +42,12 @@ export const RESUME_PLAYBACK = 'resume-playback'
  * The payload must include the guild ID.
  */
 export const PAUSE_PLAYBACK = 'pause-playback'
+/**
+ * This event tells the bot to stop the current track and delete the queue,
+ * unless it is a parallel track, in which case it only stops that track.
+ * The payload must include the guild ID.
+ */
+export const STOP_TRACK = 'stop-track'
 /**
  * This event tells the bot to skip the current track in the queue.
  * The payload must include the guild ID.
@@ -88,6 +95,12 @@ export const UPDATED_GUILDS = 'updated-guilds'
  * for the data structure. Make sure the types are correct.
  */
 export const UPDATE_PLAYER = 'update-player'
+/**
+ * This event instructs the frontend to add the track given in the payload to
+ * either the main queue or the parallel tracks, depending on what the payload says.
+ * By track here we mean a `crate::files::Track`, not a serenity `Track`.
+ */
+export const ADD_TRACK = 'add-track'
 
 /* TRACKEVENT RELAYS */
 /**
@@ -115,3 +128,17 @@ export const TRACK_PLAYED = 'track-played'
  * of songbird's `TrackEvent::Pause`.
  */
 export const TRACK_PAUSED = 'track-paused'
+
+/* PAYLOADS */
+export type AddTrackPayload = {
+    track: Track
+    parallel: boolean
+    overwrite: boolean
+    prepend: boolean
+    looping: boolean
+}
+
+export type TrackEventPayload = {
+    isParallel: boolean
+    uuid: string
+}

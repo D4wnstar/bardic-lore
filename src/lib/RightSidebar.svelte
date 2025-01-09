@@ -52,13 +52,17 @@
                 ><PlaySquare /></button
             >
         {/if}
-        <button class="btn-icon rounded-none hover:preset-filled-surface-500"
-            ><PanelLeftOpen onclick={closeSidebar} /></button
+        <button
+            class="btn-icon rounded-none hover:preset-filled-surface-500"
+            onclick={closeSidebar}><PanelLeftOpen /></button
         >
     </div>
 
     {#if visible}
-        <div transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}>
+        <div
+            class="overflow-auto"
+            transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}
+        >
             {#if tabIndex === 1}
                 <Queue />
             {:else if tabIndex === 2}

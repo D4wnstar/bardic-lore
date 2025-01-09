@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { globalGuild, playerState, toOverwrite } from './stores.svelte'
+    import { appState, skipRemoveOnEnd } from './stores.svelte'
     import type { Track } from './types'
     import { emit } from '@tauri-apps/api/event'
     import { PLAY_PARALLEL, QUEUE_TRACK } from '$lib/events'
@@ -24,30 +24,25 @@
     }
 
     async function addToQueue(overwrite: boolean) {
-        if (!playerState.offline) {
-            if (overwrite && playerState.trackQueue.length > 0) {
-                toOverwrite.track = track
-            } else {
-                playerState.trackQueue.push(track)
-            }
+        if (!appState.offline) {
+            skipRemoveOnEnd.skip = overwrite
             await emit(QUEUE_TRACK, {
-                guildId: globalGuild.id,
+                guildId: appState.guildId,
                 trackData: track,
-                looping: playerState.looping,
+                looping: appState.mainPlayer.looping,
                 overwrite,
                 prepend: false,
-                volume: playerState.volume
+                volume: appState.mainPlayer.volume
             })
         }
     }
 
     async function playParallel(looping: boolean) {
-        if (!playerState.offline) {
-            playerState.parallelTracks.push(track)
+        if (!appState.offline) {
             await emit(PLAY_PARALLEL, {
-                guildId: globalGuild.id,
+                guildId: appState.guildId,
                 trackData: track,
-                volume: playerState.volume,
+                volume: appState.mainPlayer.volume,
                 looping
             })
         }

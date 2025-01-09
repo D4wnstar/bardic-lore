@@ -12,7 +12,6 @@
 <div
     class="w-full h-16 preset-filled-surface-100-900 !bg-opacity-50 flex rounded-md"
 >
-    <!-- Becomes X icon on hover and allows removing track -->
     <div class="min-h-full min-w-16 flex items-center justify-center">
         <Music />
     </div>
@@ -20,5 +19,4 @@
         <p class="line-clamp-1">{track.title}</p>
         <p class="opacity-50 line-clamp-1">{track.album}</p>
     </div>
-    <!-- Independent controls for pause/resume, volume, position, looping -->
 </div>

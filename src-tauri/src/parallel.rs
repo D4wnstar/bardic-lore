@@ -8,6 +8,7 @@ use songbird::{
     Driver, Event, EventContext, EventHandler, TrackEvent,
 };
 use tracing::info;
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Default)]
 pub struct ParallelTracks {
@@ -22,8 +23,6 @@ impl ParallelTracks {
     }
 
     pub fn add(&self, mut track: Track, driver: &mut Driver) -> TrackHandle {
-        info!("Added track in parallel.");
-
         let remote_lock = self.inner.clone();
         track.events.add_event(
             EventData::new(
@@ -37,7 +36,44 @@ impl ParallelTracks {
         let handle = driver.play(track);
         inner.tracks.push(handle.clone());
 
+        info!("Added track in parallel.");
         return handle;
+    }
+
+    pub fn get_handle(&self, uuid: Uuid) -> Option<TrackHandle> {
+        let inner = self.inner.lock();
+        if let Some(track) = inner.tracks.iter().find(|t| t.uuid() == uuid) {
+            return Some(track.clone());
+        } else {
+            return None;
+        }
+    }
+
+    pub fn resume(&self, uuid: Uuid) {
+        let inner = self.inner.lock();
+        if let Some(track) = inner.tracks.iter().find(|t| t.uuid() == uuid) {
+            drop(track.play());
+        }
+
+        info!("Resumed parallel track.")
+    }
+
+    pub fn pause(&self, uuid: Uuid) {
+        let inner = self.inner.lock();
+        if let Some(track) = inner.tracks.iter().find(|t| t.uuid() == uuid) {
+            drop(track.pause());
+        }
+
+        info!("Paused parallel track.")
+    }
+
+    pub fn stop(&self, uuid: Uuid) {
+        let inner = self.inner.lock();
+        if let Some(track) = inner.tracks.iter().find(|t| t.uuid() == uuid) {
+            drop(track.stop())
+        }
+
+        info!("Stopped parallel track.")
     }
 }
 
@@ -72,21 +108,5 @@ impl EventHandler for ParallelHandler {
         info!("{} tracks are playing.", inner.tracks.len());
 
         return None;
-    }
-}
-
-/// Extension trait to implement the parallel store functions into the songbird Driver.
-pub trait Parallel {
-    fn add_parallel_track(&mut self, track: Track, parallel_tracks: &ParallelTracks)
-        -> TrackHandle;
-}
-
-impl Parallel for Driver {
-    fn add_parallel_track(
-        &mut self,
-        track: Track,
-        parallel_tracks: &ParallelTracks,
-    ) -> TrackHandle {
-        parallel_tracks.add(track, self)
     }
 }
