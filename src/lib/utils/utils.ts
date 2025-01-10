@@ -6,7 +6,7 @@ import { appState, type PlayerState } from '$lib/stores.svelte'
  * @returns A `PlayerState`, if any was found
  */
 export function getPlayerByUuid(uuid: string): PlayerState | undefined {
-    const maybePlayer = appState.parallelTracks.find(
+    const maybePlayer = appState.parallelPlayers.find(
         ({ track }) => track.uuid === uuid
     )
     if (!maybePlayer) {
@@ -25,4 +25,19 @@ export function rgbToHex(rgb: string): string {
     const [r, g, b] = rgb.split(' ').map(Number)
     const toHex = (value: number) => value.toString(16).padStart(2, '0')
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+export function startTimer(player: PlayerState) {
+    if (!player.timerId) {
+        player.timerId = setInterval(() => {
+            player.position += 1
+        }, 1000)
+    }
+}
+
+export function stopTimer(player: PlayerState) {
+    if (player.timerId) {
+        clearInterval(player.timerId)
+        player.timerId = undefined
+    }
 }

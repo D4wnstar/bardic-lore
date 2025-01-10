@@ -21,10 +21,11 @@ use uuid::Uuid;
 use crate::{
     events::{
         GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueTrackPayload,
-        TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME, JOIN_VOICE_CHANNEL,
-        LEAVE_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK, PLAY_PARALLEL, QUEUE_TRACK,
-        RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, STOP_TRACK, TRACK_ENDED, TRACK_LOOPED,
-        TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
+        TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME, CLEAR_QUEUE, JOIN_VOICE_CHANNEL,
+        LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK,
+        PLAY_PARALLEL, QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, STOP_TRACK,
+        TRACK_ENDED, TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS,
+        UPDATE_PLAYER,
     },
     parallel::ParallelTracks,
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
@@ -301,6 +302,12 @@ pub async fn is_bot_connected(app: AppHandle) -> bool {
 /* EVENT CALLBACKS */
 async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
     let payload: GuildChannelIdPayload = serde_json::from_str(ev.payload()).unwrap();
+    // Every time you join a channel, you also leave the previous one
+    // This is emitted BEFORE the join call since join is lazy and runs
+    // at the same time as the first track being queued, which leads to the
+    // track being removed instantly due to the LEFT_VOICE_CHANNEL event if
+    // we run it after
+    app.emit(LEFT_VOICE_CHANNEL, ()).unwrap();
     if let Err(err) = manager.join(payload.guildId, payload.channelId).await {
         print_emit_error(BOT_ERROR, &format!("Failed to join channel. {err}"), &app);
     };
@@ -308,14 +315,13 @@ async fn join_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &App
 
 async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
     let payload: GuildIdPayload = serde_json::from_str(ev.payload()).unwrap();
-    let bot_is_in_a_call = manager.get(payload.guildId).is_some();
-    if bot_is_in_a_call {
+    if manager.get(payload.guildId).is_some() {
         manager
             .remove(payload.guildId)
             .await
             .expect("Failed to leave channel");
-        app.emit(UPDATE_PLAYER, json!({ "playing": false }))
-            .unwrap();
+
+        app.emit(LEFT_VOICE_CHANNEL, ()).unwrap();
     } else {
         print_emit_error(BOT_ERROR, "Bot not in a voice channel", &app);
     };
@@ -402,13 +408,8 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
     let payload: PlayParallelPayload = serde_json::from_str(ev.payload()).unwrap();
     if let Some(handler_lock) = manager.get(payload.guildId) {
         let mut handler = handler_lock.lock().await;
-        let parallel_tracks = {
-            let typemap = ctx.data.read().await;
-            typemap
-                .get::<ParallelKey>()
-                .expect("Guaranteed to exist")
-                .clone()
-        };
+        let data = ctx.data.read().await;
+        let parallel = data.get::<ParallelKey>().expect("Guaranteed to exist");
 
         let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
         track.volume = payload.volume;
@@ -418,7 +419,7 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
         add_trackevent_relays(&app, &mut track, true);
         let uuid = track.uuid.clone();
 
-        parallel_tracks.add(track, &mut handler);
+        parallel.add(track, &mut handler);
 
         app.emit(
             ADD_TRACK,
@@ -496,6 +497,7 @@ async fn queue_action(
         TrackAction::Skip => Some((queue.skip(), json!({}))),
         TrackAction::Stop => {
             queue.stop();
+            app.emit(CLEAR_QUEUE, ()).unwrap();
             None
         }
         TrackAction::Loop => {
@@ -590,10 +592,19 @@ async fn parallel_action(
     let data = ctx.data.read().await;
     let parallel = data.get::<ParallelKey>().expect("Guaranteed to exist");
 
-    match action {
-        TrackAction::Resume => parallel.resume(uuid),
-        TrackAction::Pause => parallel.pause(uuid),
-        TrackAction::Stop => parallel.stop(uuid),
+    let payload = match action {
+        TrackAction::Resume => {
+            parallel.resume(uuid);
+            None
+        }
+        TrackAction::Pause => {
+            parallel.pause(uuid);
+            None
+        }
+        TrackAction::Stop => {
+            parallel.stop(uuid);
+            None
+        }
         TrackAction::Loop => {
             if let Some(handle) = parallel.get_handle(uuid) {
                 if let Ok(info) = handle.get_info().await {
@@ -602,16 +613,32 @@ async fn parallel_action(
                         LoopState::Finite(_) => handle.enable_loop(),
                     });
                 }
-            }
+            };
+            None
         }
         TrackAction::Seek => {
             let position = Duration::from_secs(payload.position.unwrap());
             if let Some(track) = parallel.get_handle(uuid) {
                 drop(track.seek_async(position).await);
-            }
+            };
+            let seconds = position.as_secs();
+            Some(json!({ "position": seconds, "uuid": uuid }))
         }
-        _ => (),
+        TrackAction::ChangeVolume => {
+            let volume = payload
+                .volume
+                .expect("Volume change event should have volume as payload");
+            if let Some(track) = parallel.get_handle(uuid) {
+                drop(track.set_volume(volume));
+            };
+            None
+        }
+        _ => None,
     };
+
+    if let Some(payload) = payload {
+        app.emit(UPDATE_PLAYER, payload).unwrap();
+    }
 }
 
 async fn mute_unmute(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
@@ -640,7 +667,7 @@ async fn mute_unmute(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
 /* CONVENIENCE FUNCTIONS */
 /// Print an error to stderr and emit a Tauri event with the same message as the payload.
 fn print_emit_error(ev_name: &str, error_msg: &str, app: &AppHandle) {
-    eprintln!("{error_msg}");
+    tracing::error!("{error_msg}");
     app.emit(ev_name, format!("{error_msg}")).unwrap();
 }
 

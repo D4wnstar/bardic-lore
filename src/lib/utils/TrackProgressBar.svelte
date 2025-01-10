@@ -1,19 +1,17 @@
 <script lang="ts">
-    import { type PlayerState } from '$lib/stores.svelte'
+    import { SEEK_TRACK } from '$lib/events'
+    import { appState, type PlayerState } from '$lib/stores.svelte'
     import { Progress } from '@skeletonlabs/skeleton-svelte'
+    import { emit } from '@tauri-apps/api/event'
 
     interface Props {
         player: PlayerState
+        uuid?: string
         duration?: number
-        onBarClick?: (
-            e: MouseEvent & {
-                currentTarget: EventTarget & HTMLButtonElement
-            }
-        ) => void
         classes?: string
     }
 
-    let { player, duration, onBarClick, classes }: Props = $props()
+    let { player, uuid, duration, classes }: Props = $props()
 
     function formatSeconds(seconds: number): string {
         const hours = Math.floor(seconds / 3600)
@@ -31,6 +29,25 @@
         }
     }
 
+    async function onBarClick(
+        e: MouseEvent & {
+            currentTarget: EventTarget & HTMLButtonElement
+        }
+    ) {
+        if (!duration) return
+
+        const rect = e.currentTarget.getBoundingClientRect()
+        const clickX = e.clientX - rect.left
+        const progressWidth = rect.width
+        const seekTo = Math.floor((clickX / progressWidth) * duration)
+        await emit(SEEK_TRACK, {
+            guildId: appState.guildId,
+            position: seekTo,
+            parallel: uuid ? true : false,
+            uuid
+        })
+    }
+
     let fmtProgress = $derived(formatSeconds(player.position))
     let fmtDuration = $derived(duration ? formatSeconds(duration) : '0:00')
 </script>
@@ -39,7 +56,7 @@
     <p class="type-scale-2 opacity-70">{fmtProgress}</p>
     <button class="w-full" onclick={onBarClick} aria-label="player-bar">
         <Progress
-            max={duration}
+            max={duration ?? 60}
             meterBg="bg-white hover:bg-primary-400-600"
             trackBg="bg-surface-200-800 hover:bg-surface-300-700"
             height="h-1"

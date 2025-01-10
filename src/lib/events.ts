@@ -88,6 +88,11 @@ export const BOT_ERROR = 'bot-error'
  */
 export const UPDATED_GUILDS = 'updated-guilds'
 /**
+ * This event indicates that the bot left its voice channel and either joined
+ * a new one or it went offline.
+ */
+export const LEFT_VOICE_CHANNEL = 'left-voice-channel'
+/**
  * This event instructs the frontend to update the playerState $state rune
  * using the information passed in the payload. The payload must be a `serde_json`
  * `Value`, probably made with the `json!` macro. The frontend will update the
@@ -101,6 +106,10 @@ export const UPDATE_PLAYER = 'update-player'
  * By track here we mean a `crate::files::Track`, not a serenity `Track`.
  */
 export const ADD_TRACK = 'add-track'
+/**
+ * This event instructs the frontend to clear the whole queue and stop playback.
+ */
+export const CLEAR_QUEUE = 'clear-queue'
 
 /* TRACKEVENT RELAYS */
 /**

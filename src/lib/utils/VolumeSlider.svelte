@@ -1,16 +1,46 @@
 <script lang="ts">
-    import { type PlayerState } from '$lib/stores.svelte'
+    import { CHANGE_VOLUME } from '$lib/events'
+    import { appState, type PlayerState } from '$lib/stores.svelte'
     import { Slider } from '@skeletonlabs/skeleton-svelte'
+    import { emit } from '@tauri-apps/api/event'
     import { VolumeX, Volume2 } from 'lucide-svelte'
 
     interface Props {
         player: PlayerState
-        onMuteClick?: () => void
-        onVolumeChange?: () => void
+        uuid?: string
         classes?: string
     }
 
-    let { player, onMuteClick, onVolumeChange, classes }: Props = $props()
+    let { player, uuid, classes }: Props = $props()
+
+    async function onVolumeChange() {
+        if (player.mute) return
+
+        await emit(CHANGE_VOLUME, {
+            guildId: appState.guildId,
+            volume: player.volume,
+            parallel: uuid ? true : false,
+            uuid
+        })
+    }
+
+    async function onMuteClick() {
+        let volume: number
+        if (player.mute) {
+            volume = player.volume
+            player.mute = false
+        } else {
+            volume = 0
+            player.mute = true
+        }
+
+        await emit(CHANGE_VOLUME, {
+            guildId: appState.guildId,
+            volume,
+            parallel: uuid ? true : false,
+            uuid
+        })
+    }
 
     let value = $state([player.volume * 100])
 

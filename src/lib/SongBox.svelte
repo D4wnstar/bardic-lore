@@ -1,13 +1,13 @@
 <script lang="ts">
     import { appState, skipRemoveOnEnd } from './stores.svelte'
-    import type { Track } from './types'
+    import type { CachedTrack } from './types'
     import { emit } from '@tauri-apps/api/event'
     import { PLAY_PARALLEL, QUEUE_TRACK } from '$lib/events'
     import ContextMenu from './ContextMenu.svelte'
     import { Plus } from 'lucide-svelte'
 
     interface Props {
-        track: Track
+        track: CachedTrack
     }
 
     let { track }: Props = $props()
@@ -25,7 +25,9 @@
 
     async function addToQueue(overwrite: boolean) {
         if (!appState.offline) {
-            skipRemoveOnEnd.skip = overwrite
+            if (appState.trackQueue[0]) {
+                skipRemoveOnEnd.skip = overwrite
+            }
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,
                 trackData: track,

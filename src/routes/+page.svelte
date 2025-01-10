@@ -3,7 +3,7 @@
     import RightSidebar from '$lib/RightSidebar.svelte'
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
-    import type { Track } from '$lib/types'
+    import type { CachedTrack, Track } from '$lib/types'
     import {
         appState,
         skipRemoveOnEnd,
@@ -18,6 +18,8 @@
     import {
         ADD_TRACK,
         BOT_ERROR,
+        CLEAR_QUEUE,
+        LEFT_VOICE_CHANNEL,
         TRACK_ENDED,
         TRACK_LOOPED,
         TRACK_PAUSED,
@@ -28,13 +30,14 @@
         type TrackEventPayload
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
-    import { getPlayerByUuid } from '$lib/utils/utils'
+    import { getPlayerByUuid, startTimer, stopTimer } from '$lib/utils/utils'
 
-    let tracks: { track: Track; mask: boolean }[] = $state([])
+    let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
 
     async function getTracks() {
         const store = await load(TRACKS_FILENAME, { autoSave: false })
-        const cachedTracks = (await store.get<Track[]>(TRACKS_SETTING)) ?? []
+        const cachedTracks =
+            (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
         tracks = cachedTracks.map((track) => {
             return { track, mask: true }
         })
@@ -69,10 +72,12 @@
         let unlisten2 = await listen<TrackEventPayload>(TRACK_PLAYED, (ev) => {
             if (ev.payload.isParallel === false) {
                 appState.mainPlayer.playing = true
+                startTimer(appState.mainPlayer)
             } else {
                 const player = getPlayerByUuid(ev.payload.uuid)
                 if (!player) return
                 player.playing = true
+                startTimer(player)
             }
         })
         unlisten.push(unlisten2)
@@ -80,39 +85,50 @@
         let unlisten3 = await listen<TrackEventPayload>(TRACK_PAUSED, (ev) => {
             if (ev.payload.isParallel === false) {
                 appState.mainPlayer.playing = false
+                stopTimer(appState.mainPlayer)
             } else {
                 const player = getPlayerByUuid(ev.payload.uuid)
                 if (!player) return
                 player.playing = false
+                stopTimer(player)
             }
         })
         unlisten.push(unlisten3)
 
         let unlisten4 = await listen<TrackEventPayload>(TRACK_ENDED, (ev) => {
+            console.log(ev)
             if (ev.payload.isParallel === false) {
                 // If there is a track to overwrite, overwrite the current track
                 // otherwise push to the end of queue
                 let ended_track: Track | undefined
-                if (skipRemoveOnEnd.skip) {
-                    skipRemoveOnEnd.skip = false
-                } else {
+                if (!skipRemoveOnEnd.skip) {
                     ended_track = appState.trackQueue.shift()
                 }
+                skipRemoveOnEnd.skip = false
 
                 // Reset position
                 appState.mainPlayer.position = 0
                 // Make sure to sync play state if queue is now empty
                 if (appState.trackQueue.length === 0) {
                     appState.mainPlayer.playing = false
+                    stopTimer(appState.mainPlayer)
                 }
                 // Update recent tracks if anything was removed
                 if (ended_track) {
                     appState.recentlyPlayed.unshift(ended_track)
                 }
             } else {
-                appState.parallelTracks = appState.parallelTracks.filter(
+                const endedTrack = appState.parallelPlayers.find(
+                    ({ track }) => track.uuid !== ev.payload.uuid
+                )?.track
+                // Delete both the track and the player, since it is no longer needed
+                appState.parallelPlayers = appState.parallelPlayers.filter(
                     ({ track }) => track.uuid !== ev.payload.uuid
                 )
+                // Update recent tracks if anything was removed
+                if (endedTrack) {
+                    appState.recentlyPlayed.unshift(endedTrack)
+                }
             }
         })
         unlisten.push(unlisten4)
@@ -133,20 +149,26 @@
             (ev) => {
                 if (ev.payload.isParallel === false) {
                     appState.mainPlayer.playing = true
+                    startTimer(appState.mainPlayer)
                 } else {
                     const player = getPlayerByUuid(ev.payload.uuid)
                     if (!player) return
                     player.playing = true
+                    startTimer(player)
                 }
             }
         )
         unlisten.push(unlisten6)
 
         let unlisten7 = await listen<any>(UPDATE_PLAYER, (ev) => {
-            appState.mainPlayer.position =
-                ev.payload['position'] ?? appState.mainPlayer.position
-            appState.mainPlayer.mute =
-                ev.payload['mute'] ?? appState.mainPlayer.mute
+            if (ev.payload['uuid']) {
+                const player = getPlayerByUuid(ev.payload['uuid'])
+                if (!player) return
+                player.position = ev.payload['position'] ?? player.position
+            } else {
+                appState.mainPlayer.position =
+                    ev.payload['position'] ?? appState.mainPlayer.position
+            }
         })
         unlisten.push(unlisten7)
 
@@ -165,15 +187,44 @@
                     position: 0,
                     volume: appState.mainPlayer.volume,
                     looping: ev.payload.looping,
-                    mute: false
+                    mute: false,
+                    timerId: undefined
                 }
-                appState.parallelTracks.push({
+                appState.parallelPlayers.push({
                     track: ev.payload.track,
                     player
                 })
             }
         })
         unlisten.push(unlisten8)
+
+        let unlisten9 = await listen<any>(CLEAR_QUEUE, (ev) => {
+            if (appState.trackQueue[0]) {
+                appState.recentlyPlayed.push(appState.trackQueue[0])
+            }
+            appState.trackQueue = []
+            appState.mainPlayer.position = 0
+            appState.mainPlayer.playing = false
+            stopTimer(appState.mainPlayer)
+        })
+        unlisten.push(unlisten9)
+
+        let unlisten10 = await listen<any>(LEFT_VOICE_CHANNEL, (_ev) => {
+            if (appState.trackQueue[0]) {
+                appState.recentlyPlayed.push(appState.trackQueue[0])
+            }
+            appState.trackQueue = []
+            appState.mainPlayer.position = 0
+            appState.mainPlayer.playing = false
+            stopTimer(appState.mainPlayer)
+
+            for (const state of appState.parallelPlayers) {
+                appState.recentlyPlayed.push(state.track)
+                stopTimer(state.player)
+            }
+            appState.parallelPlayers = []
+        })
+        unlisten.push(unlisten10)
 
         await getTracks()
     })

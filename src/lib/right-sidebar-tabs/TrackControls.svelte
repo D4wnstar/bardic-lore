@@ -15,10 +15,10 @@
 
     interface Props {
         state: ParallelState
-        main?: boolean
+        parallel?: boolean
     }
 
-    let { state, main }: Props = $props()
+    let { state, parallel }: Props = $props()
 
     const activeColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-primary-400')
@@ -27,7 +27,7 @@
     async function resumeParallel() {
         await emit(RESUME_PLAYBACK, {
             guildId: appState.guildId,
-            parallel: !main,
+            parallel: parallel ?? false,
             uuid: state.track.uuid
         })
     }
@@ -35,7 +35,7 @@
     async function pauseParallel() {
         await emit(PAUSE_PLAYBACK, {
             guildId: appState.guildId,
-            parallel: !main,
+            parallel: parallel ?? false,
             uuid: state.track.uuid
         })
     }
@@ -43,7 +43,7 @@
     async function stopParallel() {
         await emit(STOP_TRACK, {
             guildId: appState.guildId,
-            parallel: !main,
+            parallel: parallel ?? false,
             uuid: state.track.uuid
         })
     }
@@ -51,7 +51,7 @@
     async function skipBack() {
         await emit(SEEK_TRACK, {
             guildId: appState.guildId,
-            parallel: !main,
+            parallel: parallel ?? false,
             uuid: state.track.uuid,
             position: 0
         })
@@ -61,7 +61,7 @@
         state.player.looping = !state.player.looping
         await emit(LOOP_TRACK, {
             guildId: appState.guildId,
-            parallel: !main,
+            parallel: parallel ?? false,
             uuid: state.track.uuid
         })
     }
@@ -99,11 +99,16 @@
         </button>
     </div>
 
-    <VolumeSlider classes="pl-2 pr-4" player={state.player} />
+    <VolumeSlider
+        classes="pl-2 pr-4"
+        player={state.player}
+        uuid={parallel ? state.track.uuid : undefined}
+    />
 
     <TrackProgressBar
         classes="pb-2"
         player={state.player}
         duration={state.track.duration}
+        uuid={parallel ? state.track.uuid : undefined}
     />
 </div>

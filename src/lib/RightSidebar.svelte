@@ -4,6 +4,7 @@
     import { fade, slide } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
     import CurrentlyPlaying from './right-sidebar-tabs/CurrentlyPlaying.svelte'
+    import { onMount } from 'svelte'
 
     let visible = $state(true)
     let tabIndex = $state(2)
@@ -11,7 +12,7 @@
     let minWidth = $state(300)
 
     let id: number
-    function closeSidebar() {
+    function openCloseSidebar() {
         visible = !visible
         id = setInterval(() => {
             if (!visible) {
@@ -30,6 +31,16 @@
             minWidth = 300
             clearInterval(id)
         }
+    })
+
+    let previousWidth = window.innerWidth
+    onMount(() => {
+        window.addEventListener('resize', () => {
+            if (previousWidth > 768 && window.innerWidth < 768 && visible) {
+                openCloseSidebar()
+            }
+            previousWidth = window.innerWidth
+        })
     })
 </script>
 
@@ -54,7 +65,7 @@
         {/if}
         <button
             class="btn-icon rounded-none hover:preset-filled-surface-500"
-            onclick={closeSidebar}><PanelLeftOpen /></button
+            onclick={openCloseSidebar}><PanelLeftOpen /></button
         >
     </div>
 

@@ -6,6 +6,7 @@
     import AppSettings from './left-sidebar-tabs/AppSettings.svelte'
     import { fade, slide } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
+    import { onMount } from 'svelte'
 
     interface Props {
         getTracks: Function
@@ -18,7 +19,7 @@
     let minWidth = $state(300)
 
     let id: number[] = []
-    function closeSidebar() {
+    function openCloseSidebar() {
         visible = !visible
         const newId = setInterval(() => {
             if (!visible) {
@@ -39,6 +40,16 @@
             id.forEach(clearInterval)
         }
     })
+
+    let previousWidth = window.innerWidth
+    onMount(() => {
+        window.addEventListener('resize', () => {
+            if (previousWidth > 1024 && window.innerWidth < 1024 && visible) {
+                openCloseSidebar()
+            }
+            previousWidth = window.innerWidth
+        })
+    })
 </script>
 
 <aside
@@ -48,7 +59,7 @@
     <div class="flex w-full gap-1 min-h-12">
         <button
             class="btn-icon rounded-none hover:preset-filled-surface-500"
-            onclick={closeSidebar}><PanelRightOpen /></button
+            onclick={openCloseSidebar}><PanelRightOpen /></button
         >
         {#if visible}
             <button

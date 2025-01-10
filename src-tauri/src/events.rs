@@ -63,6 +63,9 @@ pub const BOT_ERROR: &str = "bot-error";
 /// and the Tauri store was update to match.
 /// It is fired whenever the bot receives a GUILD_CREATE event.
 pub const UPDATED_GUILDS: &str = "updated-guilds";
+/// This event indicates that the bot left its voice channel and either joined
+/// a new one or it went offline.
+pub const LEFT_VOICE_CHANNEL: &str = "left-voice-channel";
 /// This event instructs the frontend to update something related to the global
 /// appState using the information passed in the payload. The payload must be
 /// a `serde_json` `Value`, probably made with the `json!` macro. See
@@ -72,6 +75,8 @@ pub const UPDATE_PLAYER: &str = "update-player";
 /// either the main queue or the parallel tracks, depending on what the payload says.
 /// By track here we mean a `crate::files::Track`, not a serenity `Track`.
 pub const ADD_TRACK: &str = "add-track";
+/// This event instructs the frontend to clear the whole queue and stop playback.
+pub const CLEAR_QUEUE: &str = "clear-queue";
 
 /* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay

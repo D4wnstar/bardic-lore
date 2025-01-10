@@ -46,6 +46,7 @@ export type PlayerState = {
     volume: number
     looping: boolean
     mute: boolean
+    timerId: number | undefined
 }
 
 export type ParallelState = {
@@ -59,7 +60,7 @@ export type AppState = {
     offline: boolean
     trackQueue: Track[]
     recentlyPlayed: Track[]
-    parallelTracks: ParallelState[]
+    parallelPlayers: ParallelState[]
 }
 
 export const appState: AppState = $state({
@@ -70,11 +71,12 @@ export const appState: AppState = $state({
         position: 0,
         volume: 0.5,
         looping: false,
-        mute: false
+        mute: false,
+        timerId: undefined
     },
     trackQueue: [],
     recentlyPlayed: [],
-    parallelTracks: []
+    parallelPlayers: []
 })
 
 /**
