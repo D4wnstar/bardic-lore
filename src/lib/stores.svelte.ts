@@ -2,7 +2,7 @@
 // uses to keep things synchronized between the front- and backend and also for
 // persistent storage.
 
-import { Player, Playlist } from './state.svelte'
+import { LoopState, Player, Playlist } from './state.svelte'
 import type { Track } from './types'
 
 // All keys should be written in kebab-case.
@@ -49,7 +49,7 @@ export type ParallelState = {
 
 export type AppState = {
     guildId: number
-    mainPlayer: Player
+    player: Player
     offline: boolean
     playlist: Playlist
     recentlyPlayed: Track[]
@@ -59,11 +59,11 @@ export type AppState = {
 export const appState: AppState = $state({
     guildId: 0,
     offline: true,
-    mainPlayer: new Player({
+    player: new Player({
         playing: false,
         position: 0,
         volume: 0.5,
-        looping: false,
+        loopState: LoopState.None,
         mute: false
     }),
     playlist: new Playlist([], [], []),

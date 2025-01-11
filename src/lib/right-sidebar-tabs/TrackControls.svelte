@@ -58,7 +58,7 @@
     }
 
     async function loopTrack() {
-        state.player.looping = !state.player.looping
+        state.player.loopState = !state.player.loopState
         await emit(LOOP_TRACK, {
             guildId: appState.guildId,
             parallel: parallel ?? false,
@@ -95,7 +95,7 @@
             <X />
         </button>
         <button class="btn-icon" onclick={loopTrack}>
-            <Repeat color={state.player.looping ? activeColor : '#ffffff'} />
+            <Repeat color={state.player.loopState ? activeColor : '#ffffff'} />
         </button>
     </div>
 

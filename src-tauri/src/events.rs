@@ -8,6 +8,7 @@
 // If you need to add or change an event, please change the TypeScript file too.
 
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use serenity::all::{ChannelId, GuildId};
 
 use crate::files::Track;
@@ -107,14 +108,24 @@ pub struct GuildChannelIdPayload {
     pub channelId: ChannelId,
 }
 
+#[derive(Serialize_repr, Deserialize_repr, Debug)]
+#[repr(u8)]
+pub enum QueueMethod {
+    Normal,
+    Priority,
+    Prepend,
+    OverwriteCurrent,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueTrackPayload {
     pub guildId: GuildId,
-    pub prepend: bool,
-    pub overwrite: bool,
     pub trackData: Track,
     pub looping: bool,
+    pub queueMethod: QueueMethod,
     pub volume: f32,
+    pub numberOfPriority: Option<u64>,
+    pub isPriorityPlaying: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

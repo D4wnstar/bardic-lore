@@ -16,11 +16,12 @@ use songbird::{
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Mutex as AsyncMutex;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
     events::{
-        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueTrackPayload,
+        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueMethod, QueueTrackPayload,
         TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME, CLEAR_QUEUE, JOIN_VOICE_CHANNEL,
         LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK,
         PLAY_PARALLEL, QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, STOP_TRACK,
@@ -328,18 +329,32 @@ async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &Ap
 }
 
 async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
-    let payload: QueueTrackPayload = serde_json::from_str(ev.payload()).unwrap();
-    if let Some(handler_lock) = manager.get(payload.guildId) {
-        let mut handler = handler_lock.lock().await;
-        let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
-        track.volume = payload.volume;
-        if payload.looping {
-            track = track.loops(LoopState::Infinite);
-        }
-        add_trackevent_relays(&app, &mut track, false);
-        let uuid = track.uuid.clone();
+    let payload: QueueTrackPayload = serde_json::from_str(ev.payload())
+        .inspect_err(|_e| tracing::error!("Failed to parse QueueTrackPayload: {:#?}", ev.payload()))
+        .unwrap();
+    let maybe_handler = manager.get(payload.guildId);
+    if let None = maybe_handler {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        return;
+    }
 
-        let response = if payload.overwrite {
+    let handler_lock = maybe_handler.unwrap();
+    let mut handler = handler_lock.lock().await;
+    let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
+
+    track.volume = payload.volume;
+    if payload.looping {
+        track = track.loops(LoopState::Infinite);
+    }
+    add_trackevent_relays(&app, &mut track, false);
+    let uuid = track.uuid.clone();
+
+    let response = match payload.queueMethod {
+        QueueMethod::Normal => {
+            let _ = handler.enqueue(track).await;
+            json!({})
+        }
+        QueueMethod::OverwriteCurrent => {
             // Unfortunately, the Queued type has private fields so I can't
             // initialize the new track manually despite having the TrackHandle. This means
             // I have to first put the track in the queue with the builtin method
@@ -357,7 +372,28 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                 });
             }
             json!({ "position": 0 })
-        } else if payload.prepend {
+        }
+        QueueMethod::Priority => {
+            let number_of_priority = payload.numberOfPriority.expect(
+                "Number of priority tracks is necessary to add a priority track to the queue",
+            );
+            let is_priority_playing = payload
+                .isPriorityPlaying
+                .expect("isPriorityPlaying is necessary to add a priority track to the queue");
+            let _ = handler.enqueue(track).await;
+            handler.queue().modify_queue(|q| {
+                // Move track to the front, after all existing priority tracks
+                let new = q.pop_back().unwrap();
+                let index = if is_priority_playing {
+                    number_of_priority
+                } else {
+                    number_of_priority + 1
+                };
+                q.insert(index as usize, new);
+            });
+            json!({})
+        }
+        QueueMethod::Prepend => {
             let _ = handler.enqueue(track).await;
             handler.queue().modify_queue(|q| {
                 // Pause and seek to zero the current track
@@ -374,34 +410,30 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                 q.push_front(new);
             });
             json!({ "position": 0 })
-        } else {
-            let _ = handler.enqueue(track).await;
-            json!({})
-        };
-
-        app.emit(UPDATE_PLAYER, response).unwrap();
-        app.emit(
-            ADD_TRACK,
-            json!({
-                "track": {
-                    "uuid": uuid,
-                    "title": payload.trackData.title,
-                    "album": payload.trackData.album,
-                    "artist": payload.trackData.artist,
-                    "duration": payload.trackData.duration,
-                    "path": payload.trackData.path,
-                    "extension": payload.trackData.path
-                },
-                "parallel": false,
-                "overwrite": payload.overwrite,
-                "prepend": payload.prepend,
-                "looping": payload.looping,
-            }),
-        )
-        .unwrap();
-    } else {
-        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        }
     };
+
+    debug!("Emitting {UPDATE_PLAYER} event");
+    app.emit(UPDATE_PLAYER, response).unwrap();
+    debug!("Emitting {ADD_TRACK} event");
+    app.emit(
+        ADD_TRACK,
+        json!({
+            "track": {
+                "uuid": uuid,
+                "title": payload.trackData.title,
+                "album": payload.trackData.album,
+                "artist": payload.trackData.artist,
+                "duration": payload.trackData.duration,
+                "path": payload.trackData.path,
+                "extension": payload.trackData.path
+            },
+            "parallel": false,
+            "queueMethod": payload.queueMethod,
+            "looping": payload.looping,
+        }),
+    )
+    .unwrap();
 }
 
 async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle, ctx: &Context) {

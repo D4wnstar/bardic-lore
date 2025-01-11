@@ -25,7 +25,7 @@
             // The main player volume should be the only one with no UUID but we save
             // volume from appStore.mainPlayer directly just to be safe
             const store = await load(SETTINGS_FILENAME)
-            store.set(VOLUME_SETTING, appState.mainPlayer.volume)
+            store.set(VOLUME_SETTING, appState.player.volume)
         }
 
         if (player.mute) return
@@ -76,8 +76,8 @@
             // The main player volume should be the only one with no UUID but we save
             // volume from appStore.mainPlayer directly just to be safe
             const store = await load(SETTINGS_FILENAME)
-            appState.mainPlayer.volume =
-                (await store.get(VOLUME_SETTING)) ?? appState.mainPlayer.volume
+            appState.player.volume =
+                (await store.get(VOLUME_SETTING)) ?? appState.player.volume
         }
     })
 </script>

@@ -2,9 +2,18 @@
     import { appState, skipRemoveOnEnd } from './stores.svelte'
     import type { CachedTrack } from './types'
     import { emit } from '@tauri-apps/api/event'
-    import { PLAY_PARALLEL, QUEUE_TRACK } from '$lib/events'
+    import {
+        ADD_TRACK,
+        PLAY_PARALLEL,
+        QUEUE_TRACK,
+        QueueMethod,
+        type AddTrackPayload,
+        type PlayParallelPayload,
+        type QueueTrackPayload
+    } from '$lib/events'
     import ContextMenu from './ContextMenu.svelte'
     import { Plus } from 'lucide-svelte'
+    import { LoopState } from './state.svelte'
 
     interface Props {
         track: CachedTrack
@@ -23,19 +32,20 @@
         showContextMenu = true
     }
 
-    async function addToQueue(overwrite: boolean) {
+    async function addToQueue(method: QueueMethod) {
         if (!appState.offline) {
             if (appState.playlist.current()) {
-                skipRemoveOnEnd.skip = overwrite
+                skipRemoveOnEnd.skip = method === QueueMethod.OverwriteCurrent
             }
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,
                 trackData: track,
-                looping: appState.mainPlayer.looping,
-                overwrite,
-                prepend: false,
-                volume: appState.mainPlayer.volume
-            })
+                looping: appState.player.loopState === LoopState.LoopTrack,
+                queueMethod: method,
+                volume: appState.player.volume,
+                numberOfPriority: appState.playlist.priority.length,
+                isPriorityPlaying: appState.playlist.isCurrentPriority()
+            } satisfies QueueTrackPayload)
         }
     }
 
@@ -44,16 +54,16 @@
             await emit(PLAY_PARALLEL, {
                 guildId: appState.guildId,
                 trackData: track,
-                volume: appState.mainPlayer.volume,
+                volume: appState.player.volume,
                 looping
-            })
+            } satisfies PlayParallelPayload)
         }
     }
 </script>
 
 <button
     class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
-    onclick={async () => await addToQueue(true)}
+    onclick={async () => await addToQueue(QueueMethod.OverwriteCurrent)}
     oncontextmenu={handleContextMenu}
 >
     <h3 class="type-scale-5 text-primary-800-200">
@@ -71,7 +81,7 @@
             {
                 Icon: Plus,
                 label: 'Add to queue',
-                onclick: async () => await addToQueue(false)
+                onclick: async () => await addToQueue(QueueMethod.Priority)
             },
             {
                 Icon: Plus,

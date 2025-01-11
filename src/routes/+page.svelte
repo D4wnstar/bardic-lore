@@ -13,12 +13,14 @@
     import { load } from '@tauri-apps/plugin-store'
     import { getContext, onDestroy, onMount } from 'svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
-    import { type UnlistenFn, listen } from '@tauri-apps/api/event'
+    import { type UnlistenFn, emit, listen } from '@tauri-apps/api/event'
     import {
         ADD_TRACK,
         BOT_ERROR,
         CLEAR_QUEUE,
         LEFT_VOICE_CHANNEL,
+        QUEUE_TRACK,
+        QueueMethod,
         TRACK_ENDED,
         TRACK_LOOPED,
         TRACK_PAUSED,
@@ -26,11 +28,12 @@
         TRACK_PLAYED,
         UPDATE_PLAYER,
         type AddTrackPayload,
+        type QueueTrackPayload,
         type TrackEventPayload
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
     import { getPlayerByUuid } from '$lib/utils/utils'
-    import { Player } from '$lib/state.svelte'
+    import { LoopState, Player } from '$lib/state.svelte'
 
     let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
 
@@ -55,6 +58,30 @@
         }
     }
 
+    function handleAddTrackMain(method: QueueMethod, track: Track) {
+        switch (method) {
+            case QueueMethod.Normal:
+                appState.playlist.enqueue(track)
+                break
+            case QueueMethod.Prepend:
+                appState.playlist.enqueueFront(track)
+                break
+            case QueueMethod.Priority:
+                appState.playlist.enqueuePriority(track)
+                break
+            case QueueMethod.OverwriteCurrent:
+                if (appState.playlist.queue.length > 0) {
+                    let overwritten = appState.playlist.overwriteCurrent(track)
+                    if (overwritten) {
+                        appState.recentlyPlayed.push(overwritten)
+                    }
+                } else {
+                    appState.playlist.enqueue(track)
+                }
+                break
+        }
+    }
+
     let unlisten: UnlistenFn[] = []
     onMount(async () => {
         const toast: ToastContext = getContext('toast')
@@ -71,7 +98,7 @@
 
         let unlisten2 = await listen<TrackEventPayload>(TRACK_PLAYED, (ev) => {
             if (ev.payload.isParallel === false) {
-                appState.mainPlayer.start()
+                appState.player.start()
             } else {
                 const player = getPlayerByUuid(ev.payload.uuid)
                 if (player) player.start()
@@ -81,7 +108,7 @@
 
         let unlisten3 = await listen<TrackEventPayload>(TRACK_PAUSED, (ev) => {
             if (ev.payload.isParallel === false) {
-                appState.mainPlayer.stop()
+                appState.player.stop()
             } else {
                 const player = getPlayerByUuid(ev.payload.uuid)
                 if (player) player.stop()
@@ -89,46 +116,69 @@
         })
         unlisten.push(unlisten3)
 
-        let unlisten4 = await listen<TrackEventPayload>(TRACK_ENDED, (ev) => {
-            if (ev.payload.isParallel === false) {
-                // If there is a track to overwrite, overwrite the current track
-                // otherwise push to the end of queue
-                let endedTrack: Track | undefined
-                if (!skipRemoveOnEnd.skip) {
-                    let res = appState.playlist.next()
-                    endedTrack = res?.justEnded.track
-                }
-                skipRemoveOnEnd.skip = false
+        let unlisten4 = await listen<TrackEventPayload>(
+            TRACK_ENDED,
+            async (ev) => {
+                if (ev.payload.isParallel === false) {
+                    // If there is a track to overwrite, overwrite the current track
+                    // otherwise push to the end of queue
+                    let endedTrack: Track | undefined
+                    if (!skipRemoveOnEnd.skip) {
+                        let res = appState.playlist.next()
+                        endedTrack = res?.justEnded.track
+                    }
+                    skipRemoveOnEnd.skip = false
 
-                // Reset position
-                appState.mainPlayer.position = 0
-                // Make sure to sync play state if queue is now empty
-                if (appState.playlist.isEmpty()) {
-                    appState.mainPlayer.stop()
-                }
-                // Update recent tracks if anything was removed
-                if (endedTrack) {
-                    appState.recentlyPlayed.unshift(endedTrack)
-                }
-            } else {
-                const endedTrack = appState.parallelPlayers.find(
-                    ({ track }) => track.uuid !== ev.payload.uuid
-                )?.track
-                // Delete both the track and the player, since it is no longer needed
-                appState.parallelPlayers = appState.parallelPlayers.filter(
-                    ({ track }) => track.uuid !== ev.payload.uuid
-                )
-                // Update recent tracks if anything was removed
-                if (endedTrack) {
-                    appState.recentlyPlayed.unshift(endedTrack)
+                    // Reset position
+                    appState.player.position = 0
+                    // Update recent tracks if anything was removed
+                    if (endedTrack) {
+                        appState.recentlyPlayed.unshift(endedTrack)
+                    }
+
+                    if (!appState.playlist.isEmpty()) return
+
+                    // Make sure to handle playlist loops
+                    if (appState.player.loopState === LoopState.LoopPlaylist) {
+                        appState.playlist.loop()
+                        if (!appState.offline) {
+                            // If the main player is set to loop the playlist, send all the
+                            // the tracks back to the client
+                            for (const track of appState.playlist.queue) {
+                                await emit(QUEUE_TRACK, {
+                                    guildId: appState.guildId,
+                                    trackData: track,
+                                    looping: false,
+                                    queueMethod: QueueMethod.Normal,
+                                    volume: appState.player.volume,
+                                    numberOfPriority: undefined,
+                                    isPriorityPlaying: undefined
+                                } satisfies QueueTrackPayload)
+                            }
+                        }
+                    } else {
+                        appState.player.stop()
+                    }
+                } else {
+                    const endedTrack = appState.parallelPlayers.find(
+                        ({ track }) => track.uuid !== ev.payload.uuid
+                    )?.track
+                    // Delete both the track and the player, since it is no longer needed
+                    appState.parallelPlayers = appState.parallelPlayers.filter(
+                        ({ track }) => track.uuid !== ev.payload.uuid
+                    )
+                    // Update recent tracks if anything was removed
+                    if (endedTrack) {
+                        appState.recentlyPlayed.unshift(endedTrack)
+                    }
                 }
             }
-        })
+        )
         unlisten.push(unlisten4)
 
         let unlisten5 = await listen<TrackEventPayload>(TRACK_LOOPED, (ev) => {
             if (ev.payload.isParallel === false) {
-                appState.mainPlayer.position = 0
+                appState.player.position = 0
             } else {
                 const player = getPlayerByUuid(ev.payload.uuid)
                 if (player) player.position = 0
@@ -140,7 +190,7 @@
             TRACK_PLAYABLE,
             (ev) => {
                 if (ev.payload.isParallel === false) {
-                    appState.mainPlayer.start()
+                    appState.player.start()
                 } else {
                     const player = getPlayerByUuid(ev.payload.uuid)
                     if (player) player.start()
@@ -155,30 +205,23 @@
                 if (!player) return
                 player.position = ev.payload['position'] ?? player.position
             } else {
-                appState.mainPlayer.position =
-                    ev.payload['position'] ?? appState.mainPlayer.position
+                appState.player.position =
+                    ev.payload['position'] ?? appState.player.position
             }
         })
         unlisten.push(unlisten7)
 
         let unlisten8 = await listen<AddTrackPayload>(ADD_TRACK, (ev) => {
             if (!ev.payload.parallel) {
-                if (
-                    ev.payload.overwrite &&
-                    appState.playlist.queue.length > 0
-                ) {
-                    appState.playlist.overwriteCurrent(ev.payload.track)
-                } else if (ev.payload.prepend) {
-                    appState.playlist.enqueuePriority(ev.payload.track)
-                } else {
-                    appState.playlist.enqueue(ev.payload.track)
-                }
+                handleAddTrackMain(ev.payload.queueMethod, ev.payload.track)
             } else {
                 const player = new Player({
                     playing: false,
                     position: 0,
-                    volume: appState.mainPlayer.volume,
-                    looping: ev.payload.looping,
+                    volume: appState.player.volume,
+                    loopState: ev.payload.looping
+                        ? LoopState.LoopTrack
+                        : LoopState.None,
                     mute: false
                 })
                 appState.parallelPlayers.push({
@@ -195,7 +238,7 @@
                 appState.recentlyPlayed.push(current)
             }
             appState.playlist.clear()
-            appState.mainPlayer.reset()
+            appState.player.reset()
         })
         unlisten.push(unlisten9)
 
@@ -205,7 +248,7 @@
                 appState.recentlyPlayed.push(current)
             }
             appState.playlist.clear()
-            appState.mainPlayer.reset()
+            appState.player.reset()
 
             for (const state of appState.parallelPlayers) {
                 appState.recentlyPlayed.push(state.track)
@@ -217,6 +260,20 @@
 
         await getTracks()
     })
+
+    // Uncomment to debug playlist
+    // $inspect(appState.playlist.queue).with((type, queue) => {
+    //     console.log('QUEUE', queue)
+    //     return console.log
+    // })
+    // $inspect(appState.playlist.previous).with((type, prev) => {
+    //     console.log('PREVIOUS', prev)
+    //     return console.log
+    // })
+    // $inspect(appState.playlist.priority).with((type, pri) => {
+    //     console.log('PRIORITY', pri)
+    //     return console.log
+    // })
 
     onDestroy(() => {
         for (const unlistenFn of unlisten) {

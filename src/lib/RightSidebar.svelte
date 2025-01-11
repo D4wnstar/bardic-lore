@@ -7,7 +7,7 @@
     import { onMount } from 'svelte'
 
     let visible = $state(true)
-    let tabIndex = $state(2)
+    let tabIndex = $state(1)
 
     let minWidth = $state(300)
 

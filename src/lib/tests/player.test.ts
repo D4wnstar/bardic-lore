@@ -9,7 +9,7 @@ describe('Player tests', () => {
             playing: false,
             position: 0,
             volume: 50,
-            looping: false,
+            loopState: false,
             mute: false
         })
     })
@@ -18,7 +18,7 @@ describe('Player tests', () => {
         expect(player.playing).toBe(false)
         expect(player.position).toBe(0)
         expect(player.volume).toBe(50)
-        expect(player.looping).toBe(false)
+        expect(player.loopState).toBe(false)
         expect(player.mute).toBe(false)
     })
 
@@ -53,8 +53,8 @@ describe('Player tests', () => {
     })
 
     it('should toggle looping', () => {
-        player.looping = true
-        expect(player.looping).toBe(true)
+        player.loopState = true
+        expect(player.loopState).toBe(true)
     })
 
     it('should toggle mute', () => {

@@ -1,7 +1,7 @@
 // This file contains events emitted by Tauri for communication, primarily
 // between the Discord bot and the UI to keep them synchronized.
 
-import type { Track } from './types'
+import type { CachedTrack, Track } from './types'
 
 // All events should be written in kebab-case.
 // This file is a direct copy of src/events.rs file. If you need to add or change an event,
@@ -138,16 +138,44 @@ export const TRACK_PLAYED = 'track-played'
  */
 export const TRACK_PAUSED = 'track-paused'
 
-/* PAYLOADS */
+/* PAYLOADS FROM TAURI */
+/**
+ * This enum describes the method used to add a track to the queue
+ */
+export enum QueueMethod {
+    Normal,
+    Priority,
+    Prepend,
+    OverwriteCurrent
+}
+
 export type AddTrackPayload = {
     track: Track
     parallel: boolean
-    overwrite: boolean
-    prepend: boolean
+    queueMethod: QueueMethod
     looping: boolean
 }
 
 export type TrackEventPayload = {
     isParallel: boolean
     uuid: string
+}
+
+/* PAYLOADS TO TAURI */
+// To use these properly, use the `satisfies` TypeScript keyword
+export type QueueTrackPayload = {
+    guildId: number
+    trackData: CachedTrack
+    looping: boolean
+    queueMethod: QueueMethod
+    volume: number
+    numberOfPriority: number | undefined
+    isPriorityPlaying: boolean | undefined
+}
+
+export type PlayParallelPayload = {
+    guildId: number
+    trackData: CachedTrack
+    looping: boolean
+    volume: number
 }

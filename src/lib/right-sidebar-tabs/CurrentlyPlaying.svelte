@@ -10,7 +10,7 @@
         <TrackControls
             state={{
                 track: appState.playlist.current() as Track,
-                player: appState.mainPlayer
+                player: appState.player
             }}
         />
     {/if}

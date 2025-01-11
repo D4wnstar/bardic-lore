@@ -3,6 +3,7 @@
         Pause,
         Play,
         Repeat,
+        Repeat1,
         Shuffle,
         SkipBack,
         SkipForward
@@ -21,6 +22,7 @@
     import VolumeSlider from './utils/VolumeSlider.svelte'
     import TrackProgressBar from './utils/TrackProgressBar.svelte'
     import { rgbToHex } from './utils/utils'
+    import { LoopState } from './state.svelte'
 
     async function handleBackSkip() {
         if (appState.playlist.isEmpty()) {
@@ -28,8 +30,8 @@
         }
 
         if (
-            appState.mainPlayer.position >= 5 /* seconds */ ||
-            !appState.recentlyPlayed[0]
+            appState.player.position >= 5 /* seconds */ ||
+            appState.playlist.previous.length === 0
         ) {
             await emit(SEEK_TRACK, {
                 guildId: appState.guildId,
@@ -37,19 +39,41 @@
                 parallel: false
             })
         } else {
-            // Get previous track, if any
-            // Remove previous track from recents
-            // Prepend previous track to queue
-            const mostRecent = appState.recentlyPlayed.shift() as Track
-            // appState.trackQueue.unshift(mostRecent)
+            let toAdd = appState.playlist.last() as Track
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,
-                trackData: mostRecent,
-                looping: appState.mainPlayer.looping,
+                trackData: toAdd,
+                looping: appState.player.loopState === LoopState.LoopTrack,
                 prepend: true,
                 overwrite: false,
-                volume: appState.mainPlayer.volume
+                volume: appState.player.volume
             })
+        }
+    }
+
+    async function cycleLoopState() {
+        switch (appState.player.loopState) {
+            case LoopState.None:
+                appState.player.loopState = LoopState.LoopPlaylist
+                break
+            case LoopState.LoopPlaylist:
+                appState.player.loopState = LoopState.LoopTrack
+                // Update current track to loop
+                await emit(LOOP_TRACK, {
+                    guildId: appState.guildId,
+                    parallel: false
+                })
+                break
+            case LoopState.LoopTrack:
+                appState.player.loopState = LoopState.None
+                // Update current track to no longer loop
+                await emit(LOOP_TRACK, {
+                    guildId: appState.guildId,
+                    parallel: false
+                })
+                break
+            default:
+                break
         }
     }
 
@@ -72,7 +96,7 @@
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
                 onclick={handleBackSkip}><SkipBack /></button
             >
-            {#if appState.mainPlayer.playing}
+            {#if appState.player.playing}
                 <button
                     class="btn-icon rounded-none preset-filled-primary-100-900"
                     onclick={async () => {
@@ -108,27 +132,24 @@
             >
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
-                onclick={async () => {
-                    appState.mainPlayer.looping = !appState.mainPlayer.looping
-                    await emit(LOOP_TRACK, {
-                        guildId: appState.guildId,
-                        parallel: false
-                    })
-                }}
-                ><Repeat
-                    color={appState.mainPlayer.looping
-                        ? activeColor
-                        : '#ffffff'}
-                /></button
+                onclick={cycleLoopState}
             >
+                {#if appState.player.loopState === LoopState.None}
+                    <Repeat />
+                {:else if appState.player.loopState === LoopState.LoopPlaylist}
+                    <Repeat color={activeColor} />
+                {:else}
+                    <Repeat1 color={activeColor} />
+                {/if}
+            </button>
         </div>
 
         <!-- Empty padding space. Width should be equal to volume slider -->
         <TrackProgressBar
-            player={appState.mainPlayer}
+            player={appState.player}
             duration={appState.playlist.current()?.duration}
         />
     </div>
 
-    <VolumeSlider player={appState.mainPlayer} classes="pt-4" />
+    <VolumeSlider player={appState.player} classes="pt-4" />
 </div>
