@@ -2,6 +2,7 @@
 // uses to keep things synchronized between the front- and backend and also for
 // persistent storage.
 
+import { Player, Playlist } from './state.svelte'
 import type { Track } from './types'
 
 // All keys should be written in kebab-case.
@@ -18,6 +19,7 @@ import type { Track } from './types'
 export const SETTINGS_FILENAME = 'settings.json'
 export const AUDIO_SOURCES_SETTING = 'audio-sources'
 export const BOT_TOKEN_SETTING = 'bot-token'
+export const VOLUME_SETTING = 'volume'
 
 /* TRACKS */
 /**
@@ -40,25 +42,16 @@ export const DISCORD_FILENAME = 'discord.json'
 export const GUILDS_SETTING = 'guilds'
 
 /* SVELTE STATE */
-export type PlayerState = {
-    playing: boolean
-    position: number
-    volume: number
-    looping: boolean
-    mute: boolean
-    timerId: number | undefined
-}
-
 export type ParallelState = {
     track: Track
-    player: PlayerState
+    player: Player
 }
 
 export type AppState = {
     guildId: number
-    mainPlayer: PlayerState
+    mainPlayer: Player
     offline: boolean
-    trackQueue: Track[]
+    playlist: Playlist
     recentlyPlayed: Track[]
     parallelPlayers: ParallelState[]
 }
@@ -66,15 +59,14 @@ export type AppState = {
 export const appState: AppState = $state({
     guildId: 0,
     offline: true,
-    mainPlayer: {
+    mainPlayer: new Player({
         playing: false,
         position: 0,
         volume: 0.5,
         looping: false,
-        mute: false,
-        timerId: undefined
-    },
-    trackQueue: [],
+        mute: false
+    }),
+    playlist: new Playlist([], [], []),
     recentlyPlayed: [],
     parallelPlayers: []
 })

@@ -1,12 +1,19 @@
 <script lang="ts">
     import { CHANGE_VOLUME } from '$lib/events'
-    import { appState, type PlayerState } from '$lib/stores.svelte'
+    import type { Player } from '$lib/state.svelte'
+    import {
+        appState,
+        SETTINGS_FILENAME,
+        VOLUME_SETTING
+    } from '$lib/stores.svelte'
     import { Slider } from '@skeletonlabs/skeleton-svelte'
     import { emit } from '@tauri-apps/api/event'
+    import { load } from '@tauri-apps/plugin-store'
     import { VolumeX, Volume2 } from 'lucide-svelte'
+    import { onMount } from 'svelte'
 
     interface Props {
-        player: PlayerState
+        player: Player
         uuid?: string
         classes?: string
     }
@@ -14,6 +21,13 @@
     let { player, uuid, classes }: Props = $props()
 
     async function onVolumeChange() {
+        if (!uuid) {
+            // The main player volume should be the only one with no UUID but we save
+            // volume from appStore.mainPlayer directly just to be safe
+            const store = await load(SETTINGS_FILENAME)
+            store.set(VOLUME_SETTING, appState.mainPlayer.volume)
+        }
+
         if (player.mute) return
 
         await emit(CHANGE_VOLUME, {
@@ -55,6 +69,16 @@
     })
     $effect(() => {
         value[0] = player.volume * 100
+    })
+
+    onMount(async () => {
+        if (!uuid) {
+            // The main player volume should be the only one with no UUID but we save
+            // volume from appStore.mainPlayer directly just to be safe
+            const store = await load(SETTINGS_FILENAME)
+            appState.mainPlayer.volume =
+                (await store.get(VOLUME_SETTING)) ?? appState.mainPlayer.volume
+        }
     })
 </script>
 

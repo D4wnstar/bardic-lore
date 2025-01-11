@@ -4,6 +4,8 @@
     import { appState } from '$lib/stores.svelte'
 
     let tabState = $state('queue')
+    let queued = $derived(appState.playlist.queued().queued)
+    let priority = $derived(appState.playlist.queued().priority)
 </script>
 
 <div class="px-3 overflow-auto">
@@ -22,16 +24,29 @@
         {/snippet}
         {#snippet content()}
             <Tabs.Panel value="queue" classes="space-y-2 pb-5">
-                {#each appState.trackQueue as track, idx}
+                {#if queued.length > 0}
+                    <p class="pl-1 type-scale-3">
+                        <strong>You are listening to</strong>
+                    </p>
+                    <QueuedTrack track={queued[0]} />
+                {/if}
+
+                {#each priority as track, idx}
                     {#if idx === 0}
-                        <p class="pl-1 type-scale-3">
-                            <strong>You are listening to</strong>
-                        </p>
-                    {:else if idx === 1}
                         <p class="pl-1 type-scale-3 pt-4">
                             <strong>Up next</strong>
                         </p>
                     {/if}
+                    <QueuedTrack {track} />
+                {/each}
+
+                {#each queued.slice(1) as track, idx}
+                    {#if idx === 0}
+                        <p class="pl-1 type-scale-3 pt-4">
+                            <strong>Up next from the playlist</strong>
+                        </p>
+                    {/if}
+
                     <QueuedTrack {track} />
                 {/each}
             </Tabs.Panel>

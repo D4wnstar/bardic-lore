@@ -1,11 +1,12 @@
-import { appState, type PlayerState } from '$lib/stores.svelte'
+import type { Player } from '$lib/state.svelte'
+import { appState } from '$lib/stores.svelte'
 
 /**
  * Find the parallel `PlayerState` associated with the track of the given path.
  * @param path The filepath to search by
  * @returns A `PlayerState`, if any was found
  */
-export function getPlayerByUuid(uuid: string): PlayerState | undefined {
+export function getPlayerByUuid(uuid: string): Player | undefined {
     const maybePlayer = appState.parallelPlayers.find(
         ({ track }) => track.uuid === uuid
     )
@@ -25,19 +26,4 @@ export function rgbToHex(rgb: string): string {
     const [r, g, b] = rgb.split(' ').map(Number)
     const toHex = (value: number) => value.toString(16).padStart(2, '0')
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-export function startTimer(player: PlayerState) {
-    if (!player.timerId) {
-        player.timerId = setInterval(() => {
-            player.position += 1
-        }, 1000)
-    }
-}
-
-export function stopTimer(player: PlayerState) {
-    if (player.timerId) {
-        clearInterval(player.timerId)
-        player.timerId = undefined
-    }
 }

@@ -1,41 +1,43 @@
 {
-  "name": "bardic-lore",
-  "version": "0.1.0",
-  "description": "An app to organize music with tags and stream it to Discord",
-  "type": "module",
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
-  },
-  "license": "GPL-3.0-or-later",
-  "dependencies": {
-    "@tailwindcss/forms": "^0.5.9",
-    "@tailwindcss/typography": "^0.5.15",
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-dialog": "^2.2.0",
-    "@tauri-apps/plugin-fs": "^2.2.0",
-    "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-store": "^2.2.0"
-  },
-  "devDependencies": {
-    "@skeletonlabs/skeleton": "^3.0.0-next.10",
-    "@skeletonlabs/skeleton-svelte": "^1.0.0-next.16",
-    "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.9.0",
-    "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "@tauri-apps/cli": "^2",
-    "autoprefixer": "^10.4.20",
-    "lucide-svelte": "^0.469.0",
-    "postcss": "^8.4.49",
-    "prettier-plugin-svelte": "^3.3.2",
-    "svelte": "^5.0.0",
-    "svelte-check": "^4.0.0",
-    "tailwindcss": "^3.4.9",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.3"
-  }
+    "name": "bardic-lore",
+    "version": "0.1.0",
+    "description": "An app to organize music with tags and stream it to Discord",
+    "type": "module",
+    "scripts": {
+        "dev": "vite dev",
+        "build": "vite build",
+        "preview": "vite preview",
+        "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+        "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+        "tauri": "tauri",
+        "test": "vitest"
+    },
+    "license": "GPL-3.0-or-later",
+    "dependencies": {
+        "@tailwindcss/forms": "^0.5.9",
+        "@tailwindcss/typography": "^0.5.15",
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-dialog": "^2.2.0",
+        "@tauri-apps/plugin-fs": "^2.2.0",
+        "@tauri-apps/plugin-opener": "^2",
+        "@tauri-apps/plugin-store": "^2.2.0"
+    },
+    "devDependencies": {
+        "@skeletonlabs/skeleton": "^3.0.0-next.10",
+        "@skeletonlabs/skeleton-svelte": "^1.0.0-next.16",
+        "@sveltejs/adapter-static": "^3.0.6",
+        "@sveltejs/kit": "^2.9.0",
+        "@sveltejs/vite-plugin-svelte": "^5.0.0",
+        "@tauri-apps/cli": "^2",
+        "autoprefixer": "^10.4.20",
+        "lucide-svelte": "^0.469.0",
+        "postcss": "^8.4.49",
+        "prettier-plugin-svelte": "^3.3.2",
+        "svelte": "^5.0.0",
+        "svelte-check": "^4.0.0",
+        "tailwindcss": "^3.4.9",
+        "typescript": "~5.6.2",
+        "vite": "^6.0.3",
+        "vitest": "^2.1.8"
+    }
 }

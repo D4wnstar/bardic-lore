@@ -25,7 +25,7 @@
 
     async function addToQueue(overwrite: boolean) {
         if (!appState.offline) {
-            if (appState.trackQueue[0]) {
+            if (appState.playlist.current()) {
                 skipRemoveOnEnd.skip = overwrite
             }
             await emit(QUEUE_TRACK, {

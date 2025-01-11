@@ -12,6 +12,7 @@
 pub const SETTINGS_FILENAME: &str = "settings.json";
 pub const AUDIO_SOURCES_SETTING: &str = "audio-sources";
 pub const BOT_TOKEN_SETTING: &str = "bot-token";
+pub const VOLUME_SETTING: &str = "volume";
 
 /* TRACKS */
 /// The tracks store is a cache for the tracks found in the audio sources.

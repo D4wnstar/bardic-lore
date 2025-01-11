@@ -23,8 +23,7 @@
     import { rgbToHex } from './utils/utils'
 
     async function handleBackSkip() {
-        // If the queue is empty, do nothing
-        if (appState.trackQueue.length === 0) {
+        if (appState.playlist.isEmpty()) {
             return
         }
 
@@ -127,7 +126,7 @@
         <!-- Empty padding space. Width should be equal to volume slider -->
         <TrackProgressBar
             player={appState.mainPlayer}
-            duration={appState.trackQueue[0]?.duration}
+            duration={appState.playlist.current()?.duration}
         />
     </div>
 

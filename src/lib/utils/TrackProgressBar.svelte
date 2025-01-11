@@ -1,11 +1,12 @@
 <script lang="ts">
     import { SEEK_TRACK } from '$lib/events'
-    import { appState, type PlayerState } from '$lib/stores.svelte'
+    import type { Player } from '$lib/state.svelte'
+    import { appState } from '$lib/stores.svelte'
     import { Progress } from '@skeletonlabs/skeleton-svelte'
     import { emit } from '@tauri-apps/api/event'
 
     interface Props {
-        player: PlayerState
+        player: Player
         uuid?: string
         duration?: number
         classes?: string
