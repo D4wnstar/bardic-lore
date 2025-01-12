@@ -73,7 +73,7 @@
                 if (appState.playlist.queue.length > 0) {
                     let overwritten = appState.playlist.overwriteCurrent(track)
                     if (overwritten) {
-                        appState.recentlyPlayed.push(overwritten)
+                        appState.recentlyPlayed.unshift(overwritten)
                     }
                 } else {
                     appState.playlist.enqueue(track)

@@ -1,5 +1,7 @@
 <script lang="ts">
     import type { GuildSlug } from '$lib/types'
+    import { rgbToHex } from '$lib/utils/utils'
+    import { Volume2, VolumeOff } from 'lucide-svelte'
 
     interface Props {
         guild: GuildSlug
@@ -7,6 +9,15 @@
     }
 
     let { guild, onClick }: Props = $props()
+
+    const inactiveColor = rgbToHex(
+        getComputedStyle(document.body).getPropertyValue('--color-surface-400')
+    )
+    const activeColor = rgbToHex(
+        getComputedStyle(document.body).getPropertyValue(
+            '--color-secondary-200'
+        )
+    )
 </script>
 
 <div
@@ -20,14 +31,19 @@
         {#each guild.voice_channels.toSorted( (a, b) => a.name.localeCompare(b.name) ) as channel}
             <button
                 class={[
-                    'p-1 w-full justify-start text-left',
+                    'p-1 w-full items-center text-left flex gap-2 !bg-opacity-50 rounded-md',
                     !channel.active && 'hover:bg-primary-100-900',
-                    channel.active && 'bg-primary-200-800'
+                    channel.active && 'bg-primary-200-800 px-2'
                 ]}
                 onclick={() => {
                     onClick(guild, channel)
                 }}
             >
+                {#if !channel.active}
+                    <VolumeOff color={inactiveColor} opacity="0.5" />
+                {:else}
+                    <Volume2 color={activeColor} />
+                {/if}
                 {channel.name}
             </button>
         {/each}

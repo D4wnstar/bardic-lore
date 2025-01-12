@@ -2,6 +2,9 @@
     import { Tabs } from '@skeletonlabs/skeleton-svelte'
     import QueuedTrack from './QueuedTrack.svelte'
     import { appState } from '$lib/stores.svelte'
+    import { crossfade, fade, slide } from 'svelte/transition'
+    import { quintOut } from 'svelte/easing'
+    import { flip } from 'svelte/animate'
 
     let tabState = $state('queue')
     let queued = $derived(appState.playlist.queued().queued)
@@ -25,34 +28,50 @@
         {#snippet content()}
             <Tabs.Panel value="queue" classes="space-y-2 pb-5">
                 {#if queued.length > 0}
-                    <p class="pl-1 type-scale-3">
+                    <p
+                        class="pl-1 type-scale-3"
+                        transition:fade={{ duration: 200 }}
+                    >
                         <strong>You are listening to</strong>
                     </p>
-                    <QueuedTrack track={queued[0]} />
+                    <div transition:fade={{ duration: 200 }}>
+                        <QueuedTrack track={queued[0]} />
+                    </div>
                 {/if}
 
-                {#each priority as track, idx}
-                    {#if idx === 0}
-                        <p class="pl-1 type-scale-3 pt-4">
-                            <strong>Up next</strong>
-                        </p>
-                    {/if}
-                    <QueuedTrack {track} />
+                {#if priority.length > 0}
+                    <p
+                        class="pl-1 type-scale-3 pt-4"
+                        transition:fade={{ duration: 200 }}
+                    >
+                        <strong>Up next</strong>
+                    </p>
+                {/if}
+                {#each priority as track}
+                    <div transition:slide={{ axis: 'y' }}>
+                        <QueuedTrack {track} />
+                    </div>
                 {/each}
 
-                {#each queued.slice(1) as track, idx}
-                    {#if idx === 0}
-                        <p class="pl-1 type-scale-3 pt-4">
-                            <strong>Up next from the playlist</strong>
-                        </p>
-                    {/if}
-
-                    <QueuedTrack {track} />
+                {#if queued.slice(1).length > 0}
+                    <p
+                        class="pl-1 type-scale-3 pt-4"
+                        transition:fade={{ duration: 200 }}
+                    >
+                        <strong>Up next from the playlist</strong>
+                    </p>
+                {/if}
+                {#each queued.slice(1) as track}
+                    <div transition:slide={{ axis: 'y' }}>
+                        <QueuedTrack {track} />
+                    </div>
                 {/each}
             </Tabs.Panel>
             <Tabs.Panel value="recent" classes="space-y-2 pb-5">
-                {#each appState.recentlyPlayed as track}
-                    <QueuedTrack {track} />
+                {#each appState.recentlyPlayed as track (track)}
+                    <div animate:flip={{ duration: 300 }}>
+                        <QueuedTrack {track} />
+                    </div>
                 {/each}
             </Tabs.Panel>
         {/snippet}
