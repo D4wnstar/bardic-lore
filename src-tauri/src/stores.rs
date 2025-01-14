@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! This module contains constants to access the Tauri stores that Bardic Lore
 //! uses to keep things synchronized between the front- and backend and also for
 //! persistent storage.

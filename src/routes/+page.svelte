@@ -41,6 +41,7 @@
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         const cachedTracks =
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
+        console.log(cachedTracks)
         tracks = cachedTracks.map((track) => {
             return { track, mask: true }
         })
@@ -67,7 +68,11 @@
                 appState.playlist.enqueueFront(track)
                 break
             case QueueMethod.Priority:
-                appState.playlist.enqueuePriority(track)
+                if (appState.playlist.queue.length === 0) {
+                    appState.playlist.enqueue(track)
+                } else {
+                    appState.playlist.enqueuePriority(track)
+                }
                 break
             case QueueMethod.OverwriteCurrent:
                 if (appState.playlist.queue.length > 0) {
@@ -291,7 +296,7 @@
                 <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
                     {#each tracks as { track, mask }}
                         {#if mask}
-                            <SongBox {track} />
+                            <SongBox {track} {tracks} />
                         {/if}
                     {:else}
                         <div class="type-scale-5">No songs!</div>

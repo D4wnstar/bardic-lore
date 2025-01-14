@@ -17,9 +17,10 @@
 
     interface Props {
         track: CachedTrack
+        tracks: { track: CachedTrack; mask: boolean }[]
     }
 
-    let { track }: Props = $props()
+    let { track, tracks }: Props = $props()
 
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
@@ -46,6 +47,19 @@
                 numberOfPriority: appState.playlist.priority.length,
                 isPriorityPlaying: appState.playlist.isCurrentPriority()
             } satisfies QueueTrackPayload)
+
+            // for (const otherTrack of tracks) {
+            //     if (!otherTrack.mask || otherTrack.track === track) continue
+            //     await emit(QUEUE_TRACK, {
+            //         guildId: appState.guildId,
+            //         trackData: otherTrack.track,
+            //         looping: appState.player.loopState === LoopState.LoopTrack,
+            //         queueMethod: method,
+            //         volume: appState.player.volume,
+            //         numberOfPriority: appState.playlist.priority.length,
+            //         isPriorityPlaying: appState.playlist.isCurrentPriority()
+            //     } satisfies QueueTrackPayload)
+            // }
         }
     }
 

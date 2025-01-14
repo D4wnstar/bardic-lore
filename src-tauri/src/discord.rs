@@ -29,6 +29,7 @@ use crate::{
         UPDATE_PLAYER,
     },
     parallel::ParallelTracks,
+    queue::TrackQueue,
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
 };
@@ -60,6 +61,12 @@ impl PartialEq for VoiceChannelSlug {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
+}
+
+struct QueueKey;
+
+impl TypeMapKey for QueueKey {
+    type Value = TrackQueue;
 }
 
 struct ParallelKey;
@@ -109,16 +116,15 @@ impl EventHandler for Handler {
 
         let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(QUEUE_TRACK, move |ev| {
-            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
-                queue_track(ev, &manager, &app).await;
+                queue_track(ev, &manager, &app, &ctx).await;
             });
         });
 
         let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(PLAY_PARALLEL, move |ev| {
-            let (manager, app, _) = clone_boilerplate(&manager1, &app1, &ctx1);
-            let ctx = Arc::clone(&ctx1);
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
                 play_parallel(ev, &manager, &app, &ctx).await;
             });
@@ -132,7 +138,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Resume, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Resume, payload, &manager, &app).await;
+                    queue_action(TrackAction::Resume, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -145,7 +151,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Pause, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Pause, payload, &manager, &app).await;
+                    queue_action(TrackAction::Pause, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -158,7 +164,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Stop, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Stop, payload, &manager, &app).await;
+                    queue_action(TrackAction::Stop, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -171,7 +177,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Skip, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Skip, payload, &manager, &app).await;
+                    queue_action(TrackAction::Skip, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -184,7 +190,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Loop, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Loop, payload, &manager, &app).await;
+                    queue_action(TrackAction::Loop, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -197,7 +203,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::Seek, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::Seek, payload, &manager, &app).await;
+                    queue_action(TrackAction::Seek, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -210,7 +216,7 @@ impl EventHandler for Handler {
                 if payload.parallel {
                     parallel_action(TrackAction::ChangeVolume, payload, &manager, &app, &ctx).await;
                 } else {
-                    queue_action(TrackAction::ChangeVolume, payload, &manager, &app).await;
+                    queue_action(TrackAction::ChangeVolume, payload, &manager, &app, &ctx).await;
                 }
             });
         });
@@ -280,6 +286,7 @@ pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
     let mut ds_client = serenity::Client::builder(token, GatewayIntents::non_privileged())
         .event_handler(Handler { app: app.clone() })
         .type_map_insert::<ParallelKey>(ParallelTracks::new())
+        .type_map_insert::<QueueKey>(TrackQueue::new())
         .register_songbird()
         .await?;
 
@@ -328,7 +335,7 @@ async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &Ap
     };
 }
 
-async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle) {
+async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle, ctx: &Context) {
     let payload: QueueTrackPayload = serde_json::from_str(ev.payload())
         .inspect_err(|_e| tracing::error!("Failed to parse QueueTrackPayload: {:#?}", ev.payload()))
         .unwrap();
@@ -340,6 +347,8 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
 
     let handler_lock = maybe_handler.unwrap();
     let mut handler = handler_lock.lock().await;
+    let data = ctx.data.read().await;
+    let queue = data.get::<QueueKey>().expect("Guaranteed to exist");
     let mut track: Track = songbird::input::File::new(payload.trackData.path.clone()).into();
 
     track.volume = payload.volume;
@@ -351,64 +360,23 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
 
     let response = match payload.queueMethod {
         QueueMethod::Normal => {
-            let _ = handler.enqueue(track).await;
+            queue.add(track, &mut handler).await;
             json!({})
         }
         QueueMethod::OverwriteCurrent => {
-            // Unfortunately, the Queued type has private fields so I can't
-            // initialize the new track manually despite having the TrackHandle. This means
-            // I have to first put the track in the queue with the builtin method
-            // and then move it after
-            if handler.queue().is_empty() {
-                handler.enqueue(track).await;
+            if queue.is_empty() {
+                queue.add(track, &mut handler).await;
             } else {
-                handler.enqueue(track).await;
-                handler.queue().modify_queue(|q| {
-                    let curr = q.pop_front().unwrap();
-                    curr.stop().unwrap();
-                    let new = q.pop_back().unwrap();
-                    new.play().unwrap();
-                    q.push_front(new);
-                });
+                queue.overwrite_current(track, &mut handler).await;
             }
             json!({ "position": 0 })
         }
         QueueMethod::Priority => {
-            let number_of_priority = payload.numberOfPriority.expect(
-                "Number of priority tracks is necessary to add a priority track to the queue",
-            );
-            let is_priority_playing = payload
-                .isPriorityPlaying
-                .expect("isPriorityPlaying is necessary to add a priority track to the queue");
-            let _ = handler.enqueue(track).await;
-            handler.queue().modify_queue(|q| {
-                // Move track to the front, after all existing priority tracks
-                let new = q.pop_back().unwrap();
-                let index = if is_priority_playing {
-                    number_of_priority
-                } else {
-                    number_of_priority + 1
-                };
-                q.insert(index as usize, new);
-            });
+            queue.add_priority(track, &mut handler).await;
             json!({})
         }
         QueueMethod::Prepend => {
-            let _ = handler.enqueue(track).await;
-            handler.queue().modify_queue(|q| {
-                // Pause and seek to zero the current track
-                let curr_track = q.front().expect("Guaranteed to exist");
-                curr_track.pause().expect("Failed to pause current track");
-                curr_track
-                    .seek(Duration::ZERO)
-                    .result()
-                    .expect("Failed to set seek current track to zero");
-                // Move the new track from then end of the queue to the start
-                // Popping it off the queue seems to pause it, so make sure to play it
-                let new = q.pop_back().expect("Guaranteed to exist");
-                new.play().expect("Failed to play new track");
-                q.push_front(new);
-            });
+            queue.prepend(track, &mut handler).await;
             json!({ "position": 0 })
         }
     };
@@ -426,7 +394,7 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle)
                 "artist": payload.trackData.artist,
                 "duration": payload.trackData.duration,
                 "path": payload.trackData.path,
-                "extension": payload.trackData.path
+                "extension": payload.trackData.extension
             },
             "parallel": false,
             "queueMethod": payload.queueMethod,
@@ -453,6 +421,7 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
 
         parallel.add(track, &mut handler);
 
+        debug!("Emitting {ADD_TRACK} event");
         app.emit(
             ADD_TRACK,
             json!({
@@ -463,7 +432,7 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
                     "artist": payload.trackData.artist,
                     "duration": payload.trackData.duration,
                     "path": payload.trackData.path,
-                    "extension": payload.trackData.path
+                    "extension": payload.trackData.extension
                 },
                 "parallel": true,
                 "overwrite": false,
@@ -492,6 +461,7 @@ async fn queue_action(
     payload: TrackActionPayload,
     manager: &Arc<Songbird>,
     app: &AppHandle,
+    ctx: &Context,
 ) {
     let maybe_handler = manager.get(payload.guildId);
     if let None = maybe_handler {
@@ -499,9 +469,8 @@ async fn queue_action(
         return;
     };
 
-    let lock = maybe_handler.unwrap();
-    let handler = lock.lock().await;
-    let queue = handler.queue();
+    let data = ctx.data.read().await;
+    let queue = data.get::<QueueKey>().expect("Guaranteed to exist");
 
     let msg_str = match action {
         TrackAction::Resume => "resume",
