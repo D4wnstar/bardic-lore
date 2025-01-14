@@ -507,6 +507,12 @@ impl TrackQueue {
             // a difference: an error just implies it's already gone.
             drop(track.stop());
         }
+
+        for track in inner.priority.drain(..) {
+            // Errors when removing tracks don't really make
+            // a difference: an error just implies it's already gone.
+            drop(track.stop());
+        }
     }
 
     /// Skip to the next track in the queue, if it exists.

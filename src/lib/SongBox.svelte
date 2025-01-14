@@ -3,17 +3,20 @@
     import type { CachedTrack } from './types'
     import { emit } from '@tauri-apps/api/event'
     import {
-        ADD_TRACK,
         PLAY_PARALLEL,
         QUEUE_TRACK,
         QueueMethod,
-        type AddTrackPayload,
+        CLEAR_QUEUE,
         type PlayParallelPayload,
-        type QueueTrackPayload
+        type QueueTrackPayload,
+        type QueueActionPayload,
+        CREATE_PLAYLIST,
+        type CreatePlaylistPayload
     } from '$lib/events'
     import ContextMenu from './ContextMenu.svelte'
     import { Plus } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
+    import { permuteTracks } from './utils/utils'
 
     interface Props {
         track: CachedTrack
@@ -33,6 +36,23 @@
         showContextMenu = true
     }
 
+    async function createPlaylist() {
+        if (appState.offline) return
+
+        // This is guaranteed to work because the track needs to be in the list
+        // for us to even click on it
+        const tracksToSend = permuteTracks(
+            track,
+            tracks.filter((t) => t.mask).map((t) => t.track)
+        ) as CachedTrack[]
+        await emit(CREATE_PLAYLIST, {
+            guildId: appState.guildId,
+            tracksData: tracksToSend,
+            volume: appState.player.volume,
+            loopFirst: appState.player.loopState === LoopState.LoopTrack
+        } satisfies CreatePlaylistPayload)
+    }
+
     async function addToQueue(method: QueueMethod) {
         if (!appState.offline) {
             if (appState.playlist.current()) {
@@ -43,23 +63,8 @@
                 trackData: track,
                 looping: appState.player.loopState === LoopState.LoopTrack,
                 queueMethod: method,
-                volume: appState.player.volume,
-                numberOfPriority: appState.playlist.priority.length,
-                isPriorityPlaying: appState.playlist.isCurrentPriority()
+                volume: appState.player.volume
             } satisfies QueueTrackPayload)
-
-            // for (const otherTrack of tracks) {
-            //     if (!otherTrack.mask || otherTrack.track === track) continue
-            //     await emit(QUEUE_TRACK, {
-            //         guildId: appState.guildId,
-            //         trackData: otherTrack.track,
-            //         looping: appState.player.loopState === LoopState.LoopTrack,
-            //         queueMethod: method,
-            //         volume: appState.player.volume,
-            //         numberOfPriority: appState.playlist.priority.length,
-            //         isPriorityPlaying: appState.playlist.isCurrentPriority()
-            //     } satisfies QueueTrackPayload)
-            // }
         }
     }
 
@@ -77,7 +82,7 @@
 
 <button
     class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
-    onclick={async () => await addToQueue(QueueMethod.OverwriteCurrent)}
+    onclick={createPlaylist}
     oncontextmenu={handleContextMenu}
 >
     <h3 class="type-scale-5 text-primary-800-200">

@@ -15,18 +15,18 @@ use songbird::{
 };
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use tauri_plugin_store::StoreExt;
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::{sync::Mutex as AsyncMutex, time::sleep};
 use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
     events::{
-        GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload, QueueMethod, QueueTrackPayload,
-        TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME, CLEAR_QUEUE, JOIN_VOICE_CHANNEL,
-        LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL, LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK,
-        PLAY_PARALLEL, QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, STOP_TRACK,
-        TRACK_ENDED, TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS,
-        UPDATE_PLAYER,
+        CreatePlaylistPayload, GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload,
+        QueueMethod, QueueTrackPayload, TrackActionPayload, ADD_TRACK, BOT_ERROR, CHANGE_VOLUME,
+        CLEAR_QUEUE, CREATE_PLAYLIST, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL,
+        LOOP_TRACK, MUTE_UNMUTE, PAUSE_PLAYBACK, PLAYLIST_CREATED, PLAY_PARALLEL, QUEUE_EMPTIED,
+        QUEUE_TRACK, RESUME_PLAYBACK, SEEK_TRACK, SKIP_TRACK, TRACK_ENDED, TRACK_LOOPED,
+        TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
     },
     parallel::ParallelTracks,
     queue::TrackQueue,
@@ -115,6 +115,14 @@ impl EventHandler for Handler {
         });
 
         let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
+        self.app.listen(CREATE_PLAYLIST, move |ev| {
+            let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
+            tokio::spawn(async move {
+                create_playlist(ev, &manager, &app, &ctx).await;
+            });
+        });
+
+        let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
         self.app.listen(QUEUE_TRACK, move |ev| {
             let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
             tokio::spawn(async move {
@@ -157,7 +165,7 @@ impl EventHandler for Handler {
         });
 
         let (manager1, app1, ctx1) = clone_boilerplate(&manager, &self.app, &ctx);
-        self.app.listen(STOP_TRACK, move |ev| {
+        self.app.listen(CLEAR_QUEUE, move |ev| {
             let (manager, app, ctx) = clone_boilerplate(&manager1, &app1, &ctx1);
             let payload: TrackActionPayload = serde_json::from_str(ev.payload()).unwrap();
             tokio::spawn(async move {
@@ -335,6 +343,62 @@ async fn leave_voice_channel(ev: tauri::Event, manager: &Arc<Songbird>, app: &Ap
     };
 }
 
+async fn create_playlist(
+    ev: tauri::Event,
+    manager: &Arc<Songbird>,
+    app: &AppHandle,
+    ctx: &Context,
+) {
+    let payload: CreatePlaylistPayload = serde_json::from_str(ev.payload())
+        .inspect_err(|_e| {
+            tracing::error!("Failed to parse CreatePlaylistPayload: {:#?}", ev.payload())
+        })
+        .unwrap();
+
+    let maybe_handler = manager.get(payload.guildId);
+    if let None = maybe_handler {
+        print_emit_error(BOT_ERROR, "Not in a voice channel", &app);
+        return;
+    }
+
+    let handler_lock = maybe_handler.unwrap();
+    let mut handler = handler_lock.lock().await;
+    let data = ctx.data.read().await;
+    let queue = data.get::<QueueKey>().expect("Guaranteed to exist");
+
+    queue.stop();
+    app.emit(QUEUE_EMPTIED, ()).unwrap();
+
+    let mut response_tracks = vec![];
+    for (idx, track_data) in payload.tracksData.iter().enumerate() {
+        let mut track: Track = songbird::input::File::new(track_data.path.clone()).into();
+
+        track.volume = payload.volume;
+        if idx == 0 && payload.loopFirst {
+            track = track.loops(LoopState::Infinite);
+        }
+        add_trackevent_relays(&app, &mut track, false);
+        let uuid = track.uuid.clone();
+
+        queue.add(track, &mut handler).await;
+
+        response_tracks.push(json!({
+            "uuid": uuid,
+            "title": track_data.title,
+            "album": track_data.album,
+            "artist": track_data.artist,
+            "duration": track_data.duration,
+            "path": track_data.path,
+            "extension": track_data.extension
+        }));
+    }
+    let out = serde_json::to_value(&response_tracks).unwrap();
+    let res = json!({ "tracks": out });
+    // Sleep for a short time to guarantee that the QUEUE_EMPTIED event will be processed first
+    sleep(Duration::from_millis(50)).await;
+    app.emit(PLAYLIST_CREATED, res).unwrap();
+}
+
 async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle, ctx: &Context) {
     let payload: QueueTrackPayload = serde_json::from_str(ev.payload())
         .inspect_err(|_e| tracing::error!("Failed to parse QueueTrackPayload: {:#?}", ev.payload()))
@@ -498,7 +562,7 @@ async fn queue_action(
         TrackAction::Skip => Some((queue.skip(), json!({}))),
         TrackAction::Stop => {
             queue.stop();
-            app.emit(CLEAR_QUEUE, ()).unwrap();
+            app.emit(QUEUE_EMPTIED, ()).unwrap();
             None
         }
         TrackAction::Loop => {

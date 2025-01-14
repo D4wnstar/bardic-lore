@@ -17,7 +17,7 @@
     import {
         ADD_TRACK,
         BOT_ERROR,
-        CLEAR_QUEUE,
+        QUEUE_EMPTIED,
         LEFT_VOICE_CHANNEL,
         QUEUE_TRACK,
         QueueMethod,
@@ -29,7 +29,11 @@
         UPDATE_PLAYER,
         type AddTrackPayload,
         type QueueTrackPayload,
-        type TrackEventPayload
+        type TrackEventPayload,
+        PLAYLIST_CREATED,
+        type PlaylistCreatedPayload,
+        CREATE_PLAYLIST,
+        type CreatePlaylistPayload
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
     import { getPlayerByUuid } from '$lib/utils/utils'
@@ -149,17 +153,12 @@
                         if (!appState.offline) {
                             // If the main player is set to loop the playlist, send all the
                             // the tracks back to the client
-                            for (const track of appState.playlist.queue) {
-                                await emit(QUEUE_TRACK, {
-                                    guildId: appState.guildId,
-                                    trackData: track,
-                                    looping: false,
-                                    queueMethod: QueueMethod.Normal,
-                                    volume: appState.player.volume,
-                                    numberOfPriority: undefined,
-                                    isPriorityPlaying: undefined
-                                } satisfies QueueTrackPayload)
-                            }
+                            await emit(CREATE_PLAYLIST, {
+                                guildId: appState.guildId,
+                                tracksData: appState.playlist.queue,
+                                loopFirst: false,
+                                volume: appState.player.volume
+                            } satisfies CreatePlaylistPayload)
                         }
                     } else {
                         appState.player.stop()
@@ -237,7 +236,7 @@
         })
         unlisten.push(unlisten8)
 
-        let unlisten9 = await listen<any>(CLEAR_QUEUE, (ev) => {
+        let unlisten9 = await listen<any>(QUEUE_EMPTIED, (_ev) => {
             let current = appState.playlist.current()
             if (current) {
                 appState.recentlyPlayed.push(current)
@@ -262,6 +261,16 @@
             appState.parallelPlayers = []
         })
         unlisten.push(unlisten10)
+
+        let unlisten11 = await listen<PlaylistCreatedPayload>(
+            PLAYLIST_CREATED,
+            (ev) => {
+                for (const track of ev.payload.tracks) {
+                    appState.playlist.enqueue(track)
+                }
+            }
+        )
+        unlisten.push(unlisten11)
 
         await getTracks()
     })

@@ -4,8 +4,10 @@
         PAUSE_PLAYBACK,
         RESUME_PLAYBACK,
         SEEK_TRACK,
-        STOP_TRACK
+        CLEAR_QUEUE,
+        type QueueActionPayload
     } from '$lib/events'
+    import { LoopState } from '$lib/state.svelte'
     import { appState, type ParallelState } from '$lib/stores.svelte'
     import TrackProgressBar from '$lib/utils/TrackProgressBar.svelte'
     import { rgbToHex } from '$lib/utils/utils'
@@ -29,7 +31,7 @@
             guildId: appState.guildId,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        })
+        } satisfies QueueActionPayload)
     }
 
     async function pauseParallel() {
@@ -37,15 +39,15 @@
             guildId: appState.guildId,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        })
+        } satisfies QueueActionPayload)
     }
 
     async function stopParallel() {
-        await emit(STOP_TRACK, {
+        await emit(CLEAR_QUEUE, {
             guildId: appState.guildId,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        })
+        } satisfies QueueActionPayload)
     }
 
     async function skipBack() {
@@ -54,16 +56,21 @@
             parallel: parallel ?? false,
             uuid: state.track.uuid,
             position: 0
-        })
+        } satisfies QueueActionPayload)
     }
 
     async function loopTrack() {
-        state.player.loopState = !state.player.loopState
-        await emit(LOOP_TRACK, {
-            guildId: appState.guildId,
-            parallel: parallel ?? false,
-            uuid: state.track.uuid
-        })
+        if (parallel) {
+            state.player.loopState =
+                state.player.loopState === LoopState.None
+                    ? LoopState.LoopTrack
+                    : LoopState.None
+            await emit(LOOP_TRACK, {
+                guildId: appState.guildId,
+                parallel: parallel ?? false,
+                uuid: state.track.uuid
+            } satisfies QueueActionPayload)
+        }
     }
 </script>
 

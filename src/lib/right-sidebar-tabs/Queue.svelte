@@ -2,13 +2,14 @@
     import { Tabs } from '@skeletonlabs/skeleton-svelte'
     import QueuedTrack from './QueuedTrack.svelte'
     import { appState } from '$lib/stores.svelte'
-    import { crossfade, fade, slide } from 'svelte/transition'
-    import { quintOut } from 'svelte/easing'
+    import { fade, slide } from 'svelte/transition'
     import { flip } from 'svelte/animate'
 
     let tabState = $state('queue')
     let queued = $derived(appState.playlist.queued().queued)
     let priority = $derived(appState.playlist.queued().priority)
+
+    let maxTracksShown = 30
 </script>
 
 <div class="px-3 overflow-auto">
@@ -61,11 +62,19 @@
                         <strong>Up next from the playlist</strong>
                     </p>
                 {/if}
-                {#each queued.slice(1) as track}
+                {#each queued.slice(1, maxTracksShown) as track}
                     <div transition:slide={{ axis: 'y' }}>
                         <QueuedTrack {track} />
                     </div>
                 {/each}
+                {#if queued.length > maxTracksShown}
+                    <p
+                        class="pl-1 type-scale-3 text-center"
+                        transition:fade={{ duration: 200 }}
+                    >
+                        and {queued.length - maxTracksShown} more...
+                    </p>
+                {/if}
             </Tabs.Panel>
             <Tabs.Panel value="recent" classes="space-y-2 pb-5">
                 {#each appState.recentlyPlayed as track (track)}

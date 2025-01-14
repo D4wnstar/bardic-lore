@@ -25,6 +25,11 @@ export const LEAVE_VOICE_CHANNEL = 'leave-voice-channel'
  */
 export const QUEUE_TRACK = 'queue-track'
 /**
+ * This event tells the bot to fill the queue with all the given tracks
+ * after clearing the current queue.
+ */
+export const CREATE_PLAYLIST = 'create-playlist'
+/**
  * This event tells the bot to play a track on top of existing ones.
  * It will not be added to the queue. The payload must include the guild ID
  * and a Track object.
@@ -43,11 +48,12 @@ export const RESUME_PLAYBACK = 'resume-playback'
  */
 export const PAUSE_PLAYBACK = 'pause-playback'
 /**
- * This event tells the bot to stop the current track and delete the queue,
- * unless it is a parallel track, in which case it only stops that track.
+ * This event tells the bot to stop the current track and clear the whole queue.
+ * If this if for a main track, this removes all tracks, including priority one.
+ * If it is for a parallel track, it only stops that track.
  * The payload must include the guild ID.
  */
-export const STOP_TRACK = 'stop-track'
+export const CLEAR_QUEUE = 'clear-queue'
 /**
  * This event tells the bot to skip the current track in the queue.
  * The payload must include the guild ID.
@@ -107,9 +113,14 @@ export const UPDATE_PLAYER = 'update-player'
  */
 export const ADD_TRACK = 'add-track'
 /**
- * This event instructs the frontend to clear the whole queue and stop playback.
+ * This event notifies that the queue has been emptied.
  */
-export const CLEAR_QUEUE = 'clear-queue'
+export const QUEUE_EMPTIED = 'queue-emptied'
+/**
+ * This event notifies that a playlist was created and the queue was filled. Must send
+ * the list of all tracks that were added.
+ */
+export const PLAYLIST_CREATED = 'playlist-created'
 
 /* TRACKEVENT RELAYS */
 /**
@@ -163,14 +174,19 @@ export type TrackEventPayload = {
 
 /* PAYLOADS TO TAURI */
 // To use these properly, use the `satisfies` TypeScript keyword
+export type CreatePlaylistPayload = {
+    guildId: number
+    tracksData: CachedTrack[]
+    volume: number
+    loopFirst: boolean
+}
+
 export type QueueTrackPayload = {
     guildId: number
     trackData: CachedTrack
     looping: boolean
     queueMethod: QueueMethod
     volume: number
-    numberOfPriority: number | undefined
-    isPriorityPlaying: boolean | undefined
 }
 
 export type PlayParallelPayload = {
@@ -178,4 +194,21 @@ export type PlayParallelPayload = {
     trackData: CachedTrack
     looping: boolean
     volume: number
+}
+
+export type QueueActionPayload = {
+    guildId: number
+    parallel: boolean
+    /**
+     * Mandatory if `parallel` is true.
+     */
+    uuid?: string
+    /**
+     * Mandatory for a seek action.
+     */
+    position?: number
+}
+
+export type PlaylistCreatedPayload = {
+    tracks: Track[]
 }

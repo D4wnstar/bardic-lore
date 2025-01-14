@@ -23,6 +23,9 @@ pub const LEAVE_VOICE_CHANNEL: &str = "leave-voice-channel";
 /// This event tells the bot to add a track to the queue.
 /// The payload must include the guild ID and a Track object.
 pub const QUEUE_TRACK: &str = "queue-track";
+/// This event tells the bot to fill the queue with all the given tracks
+/// after clearing the current queue.
+pub const CREATE_PLAYLIST: &str = "create-playlist";
 /// This event tells the bot to play a track on top of existing ones.
 /// It will not be added to the queue. The payload must include the guild ID
 /// and a Track object.
@@ -35,10 +38,11 @@ pub const RESUME_PLAYBACK: &str = "resume-playback";
 /// If playback is not playing or the queue is empty, it does nothing.
 /// The payload must include the guild ID.
 pub const PAUSE_PLAYBACK: &str = "pause-playback";
-/// This event tells the bot to stop the current track and delete the queue,
-/// unless it is a parallel track, in which case it only stops that track.
+/// This event tells the bot to stop the current track and clear the whole queue.
+/// If this if for a main track, this removes all tracks, including priority one.
+/// If it is for a parallel track, it only stops that track.
 /// The payload must include the guild ID.
-pub const STOP_TRACK: &str = "stop-track";
+pub const CLEAR_QUEUE: &str = "clear-queue";
 /// This event tells the bot to skip the current track in the queue.
 /// The payload must include the guild ID.
 pub const SKIP_TRACK: &str = "skip-track";
@@ -76,8 +80,11 @@ pub const UPDATE_PLAYER: &str = "update-player";
 /// either the main queue or the parallel tracks, depending on what the payload says.
 /// By track here we mean a `crate::files::Track`, not a serenity `Track`.
 pub const ADD_TRACK: &str = "add-track";
-/// This event instructs the frontend to clear the whole queue and stop playback.
-pub const CLEAR_QUEUE: &str = "clear-queue";
+/// This event notifies that a playlist was created and the queue was filled. Must send
+/// the list of all tracks that were added.
+pub const PLAYLIST_CREATED: &str = "playlist-created";
+/// This event notifies that the queue has been emptied.
+pub const QUEUE_EMPTIED: &str = "queue-emptied";
 
 /* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay
@@ -118,14 +125,20 @@ pub enum QueueMethod {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CreatePlaylistPayload {
+    pub guildId: GuildId,
+    pub tracksData: Vec<Track>,
+    pub volume: f32,
+    pub loopFirst: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct QueueTrackPayload {
     pub guildId: GuildId,
     pub trackData: Track,
     pub looping: bool,
     pub queueMethod: QueueMethod,
     pub volume: f32,
-    pub numberOfPriority: Option<u64>,
-    pub isPriorityPlaying: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

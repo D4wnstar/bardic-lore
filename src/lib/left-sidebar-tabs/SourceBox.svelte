@@ -82,24 +82,14 @@
             name="active"
             bind:checked={active}
             onCheckedChange={(state) =>
-                updateAudioSource(
-                    source.path,
-                    source.path,
-                    !state.currentTarget.checked,
-                    recursive
-                )}
+                updateAudioSource(source.path, source.path, active, recursive)}
         />
         <p>Include subfolders</p>
         <ZaglessSwitch
             name="recursive"
             bind:checked={recursive}
             onCheckedChange={(state) => {
-                updateAudioSource(
-                    source.path,
-                    source.path,
-                    active,
-                    !state.currentTarget.checked
-                )
+                updateAudioSource(source.path, source.path, active, recursive)
             }}
         />
     </div>
