@@ -22,6 +22,7 @@ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFT
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
+use rand::{seq::SliceRandom, Rng};
 use songbird::{
     error::TrackResult,
     events::EventData,
@@ -31,6 +32,7 @@ use songbird::{
 };
 use std::{collections::VecDeque, ops::Deref, sync::Arc, time::Duration};
 use tracing::{info, warn};
+use uuid::Uuid;
 
 /// A simple queue for several audio sources, designed to
 /// play in sequence.
@@ -389,8 +391,10 @@ impl TrackQueue {
 
         let mut inner = self.inner.lock();
         let handle = driver.play(track.pause());
-        inner.tracks.front().map(|t| t.pause());
-        // Maybe seek to zero?
+        inner.tracks.front().map(|t| {
+            drop(t.pause());
+            drop(t.seek(Duration::ZERO))
+        });
         inner.tracks.push_front(Queued(handle.clone()));
         drop(handle.play());
 
@@ -534,6 +538,33 @@ impl TrackQueue {
         let inner = self.inner.lock();
 
         inner.tracks.iter().map(Queued::handle).collect()
+    }
+
+    /// Shuffle the queue in-place. Will not touch the track in front of the queue.
+    pub fn shuffle<R: Rng + ?Sized>(&self, rng: &mut R) {
+        let mut inner = self.inner.lock();
+
+        let mut not_front = inner.tracks.drain(1..).collect::<Vec<Queued>>();
+        not_front.shuffle(rng);
+        inner.tracks.append(&mut not_front.into());
+    }
+
+    /// Sort the queue so that the tracks follow the same order as the one given by the `uuids` array.
+    pub fn sort_by_uuids(&self, uuids: Vec<Uuid>) {
+        let mut inner = self.inner.lock();
+
+        let not_front = inner.tracks.drain(1..).collect::<Vec<Queued>>();
+        let sorted: Vec<Queued> = uuids
+            .iter()
+            .filter_map(|uuid| {
+                not_front
+                    .iter()
+                    .find(|t| t.uuid() == *uuid)
+                    .map(|q| Queued(q.handle()))
+            })
+            .collect();
+
+        inner.tracks.append(&mut sorted.into());
     }
 }
 

@@ -3,7 +3,7 @@
 // persistent storage.
 
 import { LoopState, Player, Playlist } from './state.svelte'
-import type { Track } from './types'
+import type { CachedTrack, Track } from './types'
 
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
@@ -51,6 +51,7 @@ export type AppState = {
     guildId: number
     player: Player
     offline: boolean
+    availableTracks: CachedTrack[]
     playlist: Playlist
     recentlyPlayed: Track[]
     parallelPlayers: ParallelState[]
@@ -64,8 +65,10 @@ export const appState: AppState = $state({
         position: 0,
         volume: 0.5,
         loopState: LoopState.None,
+        shuffle: false,
         mute: false
     }),
+    availableTracks: [],
     playlist: new Playlist([], [], []),
     recentlyPlayed: [],
     parallelPlayers: []

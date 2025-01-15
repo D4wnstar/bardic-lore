@@ -11,18 +11,18 @@
     import { appState } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
     import {
-        LOOP_TRACK,
-        PAUSE_PLAYBACK,
         QUEUE_TRACK,
-        RESUME_PLAYBACK,
-        SEEK_TRACK,
-        SKIP_TRACK
+        QueueMethod,
+        TrackAction,
+        UPDATE_TRACKS,
+        type QueueTrackPayload,
+        type TrackActionPayload
     } from './events'
     import type { Track } from './types'
     import VolumeSlider from './utils/VolumeSlider.svelte'
     import TrackProgressBar from './utils/TrackProgressBar.svelte'
     import { rgbToHex } from './utils/utils'
-    import { LoopState } from './state.svelte'
+    import { LoopState, SortMethod, SortOrder } from './state.svelte'
 
     async function handleBackSkip() {
         if (appState.playlist.isEmpty()) {
@@ -33,21 +33,21 @@
             appState.player.position >= 5 /* seconds */ ||
             appState.playlist.previous.length === 0
         ) {
-            await emit(SEEK_TRACK, {
+            await emit(UPDATE_TRACKS, {
                 guildId: appState.guildId,
+                action: TrackAction.Seek,
                 position: 0,
                 parallel: false
-            })
+            } satisfies TrackActionPayload)
         } else {
             let toAdd = appState.playlist.last() as Track
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,
                 trackData: toAdd,
+                queueMethod: QueueMethod.Backskip,
                 looping: appState.player.loopState === LoopState.LoopTrack,
-                prepend: true,
-                overwrite: false,
                 volume: appState.player.volume
-            })
+            } satisfies QueueTrackPayload)
         }
     }
 
@@ -59,21 +59,46 @@
             case LoopState.LoopPlaylist:
                 appState.player.loopState = LoopState.LoopTrack
                 // Update current track to loop
-                await emit(LOOP_TRACK, {
+                await emit(UPDATE_TRACKS, {
                     guildId: appState.guildId,
+                    action: TrackAction.Loop,
                     parallel: false
-                })
+                } satisfies TrackActionPayload)
                 break
             case LoopState.LoopTrack:
                 appState.player.loopState = LoopState.None
                 // Update current track to no longer loop
-                await emit(LOOP_TRACK, {
+                await emit(UPDATE_TRACKS, {
                     guildId: appState.guildId,
+                    action: TrackAction.Loop,
                     parallel: false
-                })
+                } satisfies TrackActionPayload)
                 break
             default:
                 break
+        }
+    }
+
+    async function handleShuffleClick() {
+        appState.player.shuffle = !appState.player.shuffle
+        if (appState.player.shuffle) {
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                action: TrackAction.Shuffle,
+                parallel: false
+            } satisfies TrackActionPayload)
+        } else {
+            appState.playlist.sortByMethod(
+                SortMethod.Alphabetical,
+                SortOrder.Ascending
+            )
+            const sortUuids = appState.playlist.queue.map((t) => t.uuid)
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                action: TrackAction.Sort,
+                parallel: false,
+                sortUuids
+            } satisfies TrackActionPayload)
         }
     }
 
@@ -90,7 +115,10 @@
         <div class="flex justify-center gap-2 mb-2 mt-2">
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
-                disabled><Shuffle /></button
+                onclick={handleShuffleClick}
+                ><Shuffle
+                    color={appState.player.shuffle ? activeColor : '#ffffff'}
+                /></button
             >
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
@@ -100,10 +128,11 @@
                 <button
                     class="btn-icon rounded-none preset-filled-primary-100-900"
                     onclick={async () => {
-                        await emit(PAUSE_PLAYBACK, {
+                        await emit(UPDATE_TRACKS, {
                             guildId: appState.guildId,
+                            action: TrackAction.Pause,
                             parallel: false
-                        })
+                        } satisfies TrackActionPayload)
                     }}
                 >
                     <Pause /></button
@@ -112,10 +141,11 @@
                 <button
                     class="btn-icon rounded-none preset-filled-primary-100-900"
                     onclick={async () => {
-                        await emit(RESUME_PLAYBACK, {
+                        await emit(UPDATE_TRACKS, {
                             guildId: appState.guildId,
+                            action: TrackAction.Resume,
                             parallel: false
-                        })
+                        } satisfies TrackActionPayload)
                     }}
                 >
                     <Play /></button
@@ -124,10 +154,11 @@
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
                 onclick={async () => {
-                    await emit(SKIP_TRACK, {
+                    await emit(UPDATE_TRACKS, {
                         guildId: appState.guildId,
+                        action: TrackAction.Skip,
                         parallel: false
-                    })
+                    } satisfies TrackActionPayload)
                 }}><SkipForward /></button
             >
             <button

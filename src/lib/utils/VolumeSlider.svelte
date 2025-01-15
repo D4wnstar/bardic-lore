@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { CHANGE_VOLUME } from '$lib/events'
+    import {
+        TrackAction,
+        UPDATE_TRACKS,
+        type TrackActionPayload
+    } from '$lib/events'
     import type { Player } from '$lib/state.svelte'
     import {
         appState,
@@ -30,12 +34,13 @@
 
         if (player.mute) return
 
-        await emit(CHANGE_VOLUME, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.ChangeVolume,
             volume: player.volume,
             parallel: uuid ? true : false,
             uuid
-        })
+        } satisfies TrackActionPayload)
     }
 
     async function onMuteClick() {
@@ -48,12 +53,13 @@
             player.mute = true
         }
 
-        await emit(CHANGE_VOLUME, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.ChangeVolume,
             volume,
             parallel: uuid ? true : false,
             uuid
-        })
+        } satisfies TrackActionPayload)
     }
 
     let value = $state([player.volume * 100])

@@ -5,6 +5,15 @@ type TrackInternal = {
     singleUse: boolean
 }
 
+export enum SortMethod {
+    Alphabetical
+}
+
+export enum SortOrder {
+    Ascending,
+    Descending
+}
+
 /**
  * A playlist abstraction to handle the state of the queue, including support
  * for manually adding one-time tracks, previously played tracks for backskips
@@ -64,9 +73,7 @@ export class Playlist {
      * @returns The last played track, if any.
      */
     last() {
-        if (this.#previous.length > 0) {
-            return this.#previous[-1].track
-        }
+        return this.#previous.at(-1)?.track
     }
 
     /**
@@ -78,6 +85,16 @@ export class Playlist {
         const priority = this.#priority.map((t) => t.track)
         const queued = this.#queue.map((t) => t.track)
         return { priority, queued }
+    }
+
+    /**
+     * Returns a list of all of the tracks that make up the playlist.
+     * @returns An array of `Track`s
+     */
+    tracks() {
+        const previous = this.#previous.map((t) => t.track)
+        const queued = this.#queue.map((t) => t.track)
+        return [...previous, ...queued]
     }
 
     /**
@@ -149,15 +166,11 @@ export class Playlist {
     }
 
     /**
-     * Add the previous played track to the queue.
-     * @returns The track that was added back, if any
+     * Pops the previous queue.
+     * @returns The popped track, if any
      */
-    backskip() {
-        if (this.#previous.length > 0) {
-            const toAdd = this.#previous.pop() as TrackInternal
-            this.#queue.unshift(toAdd)
-            return toAdd.track
-        }
+    popPrevious() {
+        return this.#previous.pop()?.track
     }
 
     /**
@@ -190,6 +203,78 @@ export class Playlist {
         this.#previous.forEach((t) => this.#queue.push(t))
         this.#previous = []
     }
+
+    /**
+     * Sorts the queue so that the tracks follow the same order as the one given by the `uuids` array.
+     * @param uuids The array of UUIDs to sort by
+     * @param [opts={ skipFirst: false }] Whether to skip the first (and current) track
+     * If this is true, the given UUIDs should NOT contain the UUID of the first track
+     * @returns The sorted array of tracks
+     */
+    sortByUuids(uuids: string[], opts = { skipFirst: false }) {
+        let tracks = opts.skipFirst ? this.#queue.slice(1) : this.#queue
+        const sortedTracks = uuids
+            .map((uuid) => {
+                const track = tracks.find((t) => t.track.uuid === uuid)
+                if (!track) {
+                    console.warn(`Failed to find track with UUID ${uuid}`)
+                    return null
+                }
+                return track
+            })
+            .filter((track) => track !== null)
+
+        if (opts.skipFirst) {
+            this.#queue = [this.#queue[0], ...sortedTracks]
+        } else {
+            this.#queue = sortedTracks
+        }
+    }
+
+    /**
+     * Reset the playlist by moving all previous tracks into the queue, then sort
+     * the queue by the given method, leaving the current track untouched.
+     * @param method The method to sort with
+     * @param order The order to sort by
+     */
+    sortByMethod(method: SortMethod, order: SortOrder) {
+        if (this.tracks().length < 2) return
+
+        let sortedTracks = [...this.#previous, ...this.#queue]
+        this.#previous = []
+        switch (method) {
+            case SortMethod.Alphabetical:
+                if (order === SortOrder.Ascending) {
+                    sortedTracks = sortedTracks.sort((a, b) =>
+                        a.track.title.localeCompare(b.track.title)
+                    )
+                } else {
+                    sortedTracks = sortedTracks.sort((a, b) =>
+                        b.track.title.localeCompare(a.track.title)
+                    )
+                }
+                break
+        }
+
+        if (this.#queue[0]) {
+            // Make sure to rotate the array so that the current track is at the start
+            sortedTracks = this.permuteTracks(
+                this.#queue[0],
+                sortedTracks
+            ) as TrackInternal[]
+        }
+
+        this.#queue = sortedTracks
+    }
+
+    private permuteTracks(startTrack: TrackInternal, tracks: TrackInternal[]) {
+        let maybeIndex = tracks.findIndex((t) => t === startTrack)
+        if (maybeIndex === -1) return
+
+        let firstBlock = tracks.slice(maybeIndex)
+        let secondBlock = tracks.slice(0, maybeIndex)
+        return [...firstBlock, ...secondBlock]
+    }
 }
 
 export enum LoopState {
@@ -203,6 +288,7 @@ export class Player {
     position = $state(0)
     volume = $state(0.5)
     loopState = $state(LoopState.None)
+    shuffle = $state(false)
     mute = $state(false)
     private timerId: number | undefined = $state()
 
@@ -211,12 +297,14 @@ export class Player {
         position: number
         volume: number
         loopState: LoopState
+        shuffle: boolean
         mute: boolean
     }) {
         this.#playing = opts.playing
         this.position = opts.position
         this.volume = opts.volume
         this.loopState = opts.loopState
+        this.shuffle = this.shuffle
         this.mute = opts.mute
         this.timerId = undefined
     }

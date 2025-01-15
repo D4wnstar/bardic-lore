@@ -6,24 +6,21 @@
         PLAY_PARALLEL,
         QUEUE_TRACK,
         QueueMethod,
-        CLEAR_QUEUE,
         type PlayParallelPayload,
         type QueueTrackPayload,
-        type QueueActionPayload,
         CREATE_PLAYLIST,
         type CreatePlaylistPayload
     } from '$lib/events'
     import ContextMenu from './ContextMenu.svelte'
-    import { Plus } from 'lucide-svelte'
+    import { Layers, Plus, Replace } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
     import { permuteTracks } from './utils/utils'
 
     interface Props {
         track: CachedTrack
-        tracks: { track: CachedTrack; mask: boolean }[]
     }
 
-    let { track, tracks }: Props = $props()
+    let { track }: Props = $props()
 
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
@@ -43,13 +40,14 @@
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
-            tracks.filter((t) => t.mask).map((t) => t.track)
+            appState.availableTracks
         ) as CachedTrack[]
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
             tracksData: tracksToSend,
             volume: appState.player.volume,
-            loopFirst: appState.player.loopState === LoopState.LoopTrack
+            loopFirst: appState.player.loopState === LoopState.LoopTrack,
+            shuffle: appState.player.shuffle
         } satisfies CreatePlaylistPayload)
     }
 
@@ -103,12 +101,18 @@
                 onclick: async () => await addToQueue(QueueMethod.Priority)
             },
             {
-                Icon: Plus,
+                Icon: Replace,
+                label: 'Replace current',
+                onclick: async () =>
+                    await addToQueue(QueueMethod.OverwriteCurrent)
+            },
+            {
+                Icon: Layers,
                 label: 'Play overlayed',
                 onclick: async () => await playParallel(false)
             },
             {
-                Icon: Plus,
+                Icon: Layers,
                 label: 'Play overlayed (looping)',
                 onclick: async () => await playParallel(true)
             }

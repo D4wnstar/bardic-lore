@@ -1,11 +1,8 @@
 <script lang="ts">
     import {
-        LOOP_TRACK,
-        PAUSE_PLAYBACK,
-        RESUME_PLAYBACK,
-        SEEK_TRACK,
-        CLEAR_QUEUE,
-        type QueueActionPayload
+        type TrackActionPayload,
+        UPDATE_TRACKS,
+        TrackAction
     } from '$lib/events'
     import { LoopState } from '$lib/state.svelte'
     import { appState, type ParallelState } from '$lib/stores.svelte'
@@ -13,7 +10,15 @@
     import { rgbToHex } from '$lib/utils/utils'
     import VolumeSlider from '$lib/utils/VolumeSlider.svelte'
     import { emit } from '@tauri-apps/api/event'
-    import { Music, Pause, Play, Repeat, SkipBack, X } from 'lucide-svelte'
+    import {
+        Music,
+        Pause,
+        Play,
+        Repeat,
+        Repeat1,
+        SkipBack,
+        X
+    } from 'lucide-svelte'
 
     interface Props {
         state: ParallelState
@@ -27,36 +32,40 @@
     )
 
     async function resumeParallel() {
-        await emit(RESUME_PLAYBACK, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.Resume,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        } satisfies QueueActionPayload)
+        } satisfies TrackActionPayload)
     }
 
     async function pauseParallel() {
-        await emit(PAUSE_PLAYBACK, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.Pause,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        } satisfies QueueActionPayload)
+        } satisfies TrackActionPayload)
     }
 
     async function stopParallel() {
-        await emit(CLEAR_QUEUE, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.Stop,
             parallel: parallel ?? false,
             uuid: state.track.uuid
-        } satisfies QueueActionPayload)
+        } satisfies TrackActionPayload)
     }
 
     async function skipBack() {
-        await emit(SEEK_TRACK, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.Seek,
             parallel: parallel ?? false,
             uuid: state.track.uuid,
             position: 0
-        } satisfies QueueActionPayload)
+        } satisfies TrackActionPayload)
     }
 
     async function loopTrack() {
@@ -65,11 +74,12 @@
                 state.player.loopState === LoopState.None
                     ? LoopState.LoopTrack
                     : LoopState.None
-            await emit(LOOP_TRACK, {
+            await emit(UPDATE_TRACKS, {
                 guildId: appState.guildId,
+                action: TrackAction.Loop,
                 parallel: parallel ?? false,
                 uuid: state.track.uuid
-            } satisfies QueueActionPayload)
+            } satisfies TrackActionPayload)
         }
     }
 </script>
@@ -102,7 +112,11 @@
             <X />
         </button>
         <button class="btn-icon" onclick={loopTrack}>
-            <Repeat color={state.player.loopState ? activeColor : '#ffffff'} />
+            {#if state.player.loopState == LoopState.LoopTrack}
+                <Repeat1 color={activeColor} />
+            {:else}
+                <Repeat />
+            {/if}
         </button>
     </div>
 

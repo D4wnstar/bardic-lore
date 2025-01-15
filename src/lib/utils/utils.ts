@@ -3,9 +3,9 @@ import { appState } from '$lib/stores.svelte'
 import type { CachedTrack } from '$lib/types'
 
 /**
- * Find the parallel `PlayerState` associated with the track of the given path.
+ * Find the parallel `Player` associated with the track of the given path.
  * @param path The filepath to search by
- * @returns A `PlayerState`, if any was found
+ * @returns A `Player`, if any was found
  */
 export function getPlayerByUuid(uuid: string): Player | undefined {
     const maybePlayer = appState.parallelPlayers.find(
@@ -39,7 +39,7 @@ export function rgbToHex(rgb: string): string {
  */
 export function permuteTracks(startTrack: CachedTrack, tracks: CachedTrack[]) {
     let maybeIndex = tracks.findIndex((t) => t === startTrack)
-    if (!maybeIndex) return
+    if (maybeIndex === -1) return
 
     let firstBlock = tracks.slice(maybeIndex)
     let secondBlock = tracks.slice(0, maybeIndex)

@@ -36,6 +36,12 @@ export const CREATE_PLAYLIST = 'create-playlist'
  */
 export const PLAY_PARALLEL = 'play-parallel'
 /**
+ * This event tells the bot to update one or more of the tracks. Whether the
+ * track is in the queue or in parallel and what action to take depend on the
+ * contents of the payload.
+ */
+export const UPDATE_TRACKS = 'update-tracks'
+/**
  * This event tells the bot to resume playback of its queue.
  * If playback is not paused or the queue is empty, it does nothing.
  * The payload must include the guild ID.
@@ -79,6 +85,11 @@ export const CHANGE_VOLUME = 'change-volume'
  * The payload must include the guild ID.
  */
 export const MUTE_UNMUTE = 'mute-unmute'
+/**
+ * This event tells the bot to reshuffle the entire queue, keeping the current
+ * track in its place.
+ */
+export const SHUFFLE_QUEUE = 'shuffle-queue'
 
 /* FROM BOT TO UI */
 /**
@@ -113,14 +124,18 @@ export const UPDATE_PLAYER = 'update-player'
  */
 export const ADD_TRACK = 'add-track'
 /**
- * This event notifies that the queue has been emptied.
- */
-export const QUEUE_EMPTIED = 'queue-emptied'
-/**
  * This event notifies that a playlist was created and the queue was filled. Must send
  * the list of all tracks that were added.
  */
 export const PLAYLIST_CREATED = 'playlist-created'
+/**
+ * This event notifies that the queue has been emptied.
+ */
+export const QUEUE_EMPTIED = 'queue-emptied'
+/**
+ * This event notifies that the queue has been sorted or shuffled.
+ */
+export const QUEUE_SORTED = 'queue-sorted'
 
 /* TRACKEVENT RELAYS */
 /**
@@ -151,13 +166,25 @@ export const TRACK_PAUSED = 'track-paused'
 
 /* PAYLOADS FROM TAURI */
 /**
- * This enum describes the method used to add a track to the queue
+ * This enum describes the method used to add a track to the queue.
  */
 export enum QueueMethod {
     Normal,
     Priority,
-    Prepend,
+    Backskip,
     OverwriteCurrent
+}
+
+export enum TrackAction {
+    Resume,
+    Pause,
+    Skip,
+    Stop,
+    Loop,
+    Seek,
+    ChangeVolume,
+    Shuffle,
+    Sort
 }
 
 export type AddTrackPayload = {
@@ -179,6 +206,7 @@ export type CreatePlaylistPayload = {
     tracksData: CachedTrack[]
     volume: number
     loopFirst: boolean
+    shuffle: boolean
 }
 
 export type QueueTrackPayload = {
@@ -196,8 +224,9 @@ export type PlayParallelPayload = {
     volume: number
 }
 
-export type QueueActionPayload = {
+export type TrackActionPayload = {
     guildId: number
+    action: TrackAction
     parallel: boolean
     /**
      * Mandatory if `parallel` is true.
@@ -207,8 +236,20 @@ export type QueueActionPayload = {
      * Mandatory for a seek action.
      */
     position?: number
+    /**
+     * Mandatory for a change volume action.
+     */
+    volume?: number
+    /**
+     * Mandatory for a sort action.
+     */
+    sortUuids?: string[]
 }
 
 export type PlaylistCreatedPayload = {
     tracks: Track[]
+}
+
+export type QueueShuffledPayload = {
+    uuids: string[]
 }

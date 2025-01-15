@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use serenity::all::{ChannelId, GuildId};
 
-use crate::files::Track;
+use crate::{discord::TrackAction, files::Track};
 
 /* FROM UI TO BOT */
 /// This event tells the Bot to enter a voice channel.
@@ -30,6 +30,10 @@ pub const CREATE_PLAYLIST: &str = "create-playlist";
 /// It will not be added to the queue. The payload must include the guild ID
 /// and a Track object.
 pub const PLAY_PARALLEL: &str = "play-parallel";
+/// This event tells the bot to update one or more of the tracks. Whether the
+/// track is in the queue or in parallel and what action to take depend on the
+/// contents of the payload.
+pub const UPDATE_TRACKS: &str = "update-tracks";
 /// This event tells the bot to resume playback of its queue.
 /// If playback is not paused or the queue is empty, it does nothing.
 /// The payload must include the guild ID.
@@ -58,6 +62,9 @@ pub const CHANGE_VOLUME: &str = "change-volume";
 /// This event tells the bot to mute or unmute, inverting the state.
 /// The payload must include the guild ID.
 pub const MUTE_UNMUTE: &str = "mute-unmute";
+/// This event tells the bot to reshuffle the entire queue, keeping the current
+/// track in its place.
+pub const SHUFFLE_QUEUE: &str = "shuffle-queue";
 
 /* FROM BOT TO UI */
 /// This event indicates that there was an error in a bot command. It is
@@ -85,6 +92,8 @@ pub const ADD_TRACK: &str = "add-track";
 pub const PLAYLIST_CREATED: &str = "playlist-created";
 /// This event notifies that the queue has been emptied.
 pub const QUEUE_EMPTIED: &str = "queue-emptied";
+/// This event notifies that the queue has been sorted or shuffled.
+pub const QUEUE_SORTED: &str = "queue-sorted";
 
 /* TRACKEVENT RELAYS */
 /// This event notifies the frontend that a track just finished. Essentially a relay
@@ -120,7 +129,7 @@ pub struct GuildChannelIdPayload {
 pub enum QueueMethod {
     Normal,
     Priority,
-    Prepend,
+    Backskip,
     OverwriteCurrent,
 }
 
@@ -130,6 +139,7 @@ pub struct CreatePlaylistPayload {
     pub tracksData: Vec<Track>,
     pub volume: f32,
     pub loopFirst: bool,
+    pub shuffle: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -152,8 +162,14 @@ pub struct PlayParallelPayload {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TrackActionPayload {
     pub guildId: GuildId,
+    pub action: TrackAction,
     pub parallel: bool,
+    /// Mandatory if `parallel` is true
     pub uuid: Option<String>,
+    /// Mandatory for a seek action
     pub position: Option<u64>,
+    /// Mandatory for a change volume action
     pub volume: Option<f32>,
+    /// Mandatory for a sort action
+    pub sortUuids: Option<Vec<String>>,
 }

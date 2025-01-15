@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { SEEK_TRACK } from '$lib/events'
+    import {
+        TrackAction,
+        UPDATE_TRACKS,
+        type TrackActionPayload
+    } from '$lib/events'
     import type { Player } from '$lib/state.svelte'
     import { appState } from '$lib/stores.svelte'
     import { Progress } from '@skeletonlabs/skeleton-svelte'
@@ -41,12 +45,13 @@
         const clickX = e.clientX - rect.left
         const progressWidth = rect.width
         const seekTo = Math.floor((clickX / progressWidth) * duration)
-        await emit(SEEK_TRACK, {
+        await emit(UPDATE_TRACKS, {
             guildId: appState.guildId,
+            action: TrackAction.Seek,
             position: seekTo,
             parallel: uuid ? true : false,
             uuid
-        })
+        } satisfies TrackActionPayload)
     }
 
     let fmtProgress = $derived(formatSeconds(player.position))

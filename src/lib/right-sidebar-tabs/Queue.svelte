@@ -35,9 +35,11 @@
                     >
                         <strong>You are listening to</strong>
                     </p>
-                    <div transition:fade={{ duration: 200 }}>
-                        <QueuedTrack track={queued[0]} />
-                    </div>
+                    {#key queued[0]}
+                        <div in:fade={{ duration: 200 }}>
+                            <QueuedTrack track={queued[0]} />
+                        </div>
+                    {/key}
                 {/if}
 
                 {#if priority.length > 0}

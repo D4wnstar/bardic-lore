@@ -19,7 +19,6 @@
         BOT_ERROR,
         QUEUE_EMPTIED,
         LEFT_VOICE_CHANNEL,
-        QUEUE_TRACK,
         QueueMethod,
         TRACK_ENDED,
         TRACK_LOOPED,
@@ -28,24 +27,29 @@
         TRACK_PLAYED,
         UPDATE_PLAYER,
         type AddTrackPayload,
-        type QueueTrackPayload,
         type TrackEventPayload,
         PLAYLIST_CREATED,
         type PlaylistCreatedPayload,
         CREATE_PLAYLIST,
-        type CreatePlaylistPayload
+        type CreatePlaylistPayload,
+        type QueueShuffledPayload,
+        QUEUE_SORTED
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
     import { getPlayerByUuid } from '$lib/utils/utils'
     import { LoopState, Player } from '$lib/state.svelte'
 
     let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
+    $effect(() => {
+        appState.availableTracks = tracks
+            .filter((t) => t.mask)
+            .map((t) => t.track)
+    })
 
     async function getTracks() {
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         const cachedTracks =
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
-        console.log(cachedTracks)
         tracks = cachedTracks.map((track) => {
             return { track, mask: true }
         })
@@ -68,7 +72,8 @@
             case QueueMethod.Normal:
                 appState.playlist.enqueue(track)
                 break
-            case QueueMethod.Prepend:
+            case QueueMethod.Backskip:
+                appState.playlist.popPrevious()
                 appState.playlist.enqueueFront(track)
                 break
             case QueueMethod.Priority:
@@ -157,7 +162,8 @@
                                 guildId: appState.guildId,
                                 tracksData: appState.playlist.queue,
                                 loopFirst: false,
-                                volume: appState.player.volume
+                                volume: appState.player.volume,
+                                shuffle: appState.player.shuffle
                             } satisfies CreatePlaylistPayload)
                         }
                     } else {
@@ -226,6 +232,7 @@
                     loopState: ev.payload.looping
                         ? LoopState.LoopTrack
                         : LoopState.None,
+                    shuffle: false,
                     mute: false
                 })
                 appState.parallelPlayers.push({
@@ -272,6 +279,23 @@
         )
         unlisten.push(unlisten11)
 
+        let unlisten12 = await listen<QueueShuffledPayload>(
+            QUEUE_SORTED,
+            (ev) => {
+                if (appState.playlist.isEmpty()) {
+                    console.warn(
+                        `A ${QUEUE_SORTED} event was received with an empty queue`
+                    )
+                    return
+                }
+                // Ignore the first UUID, since it's already playing
+                appState.playlist.sortByUuids(ev.payload.uuids, {
+                    skipFirst: true
+                })
+            }
+        )
+        unlisten.push(unlisten12)
+
         await getTracks()
     })
 
@@ -280,7 +304,7 @@
     //     console.log('QUEUE', queue)
     //     return console.log
     // })
-    // $inspect(appState.playlist.previous).with((type, prev) => {
+    // $inspect(appState.playlist.previous).with((_type, prev) => {
     //     console.log('PREVIOUS', prev)
     //     return console.log
     // })
@@ -305,7 +329,7 @@
                 <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
                     {#each tracks as { track, mask }}
                         {#if mask}
-                            <SongBox {track} {tracks} />
+                            <SongBox {track} />
                         {/if}
                     {:else}
                         <div class="type-scale-5">No songs!</div>
