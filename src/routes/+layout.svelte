@@ -1,10 +1,9 @@
 <script lang="ts">
     import '../app.css'
     import { type Snippet } from 'svelte'
-    import type { LayoutData } from './$types'
     import { ToastProvider } from '@skeletonlabs/skeleton-svelte'
 
-    let { data, children }: { data: LayoutData; children: Snippet } = $props()
+    let { children }: { children: Snippet } = $props()
 </script>
 
 <svelte:head>

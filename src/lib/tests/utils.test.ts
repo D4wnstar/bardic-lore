@@ -1,6 +1,6 @@
 import { getPlayerByUuid, rgbToHex, permuteTracks } from '../utils/utils'
 import { appState } from '../stores.svelte'
-import type { CachedTrack, Track } from '../types'
+import type { Track } from '../types'
 import { describe, it, expect } from 'vitest'
 import { LoopState, Player } from '$lib/state.svelte'
 

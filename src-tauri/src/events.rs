@@ -34,37 +34,9 @@ pub const PLAY_PARALLEL: &str = "play-parallel";
 /// track is in the queue or in parallel and what action to take depend on the
 /// contents of the payload.
 pub const UPDATE_TRACKS: &str = "update-tracks";
-/// This event tells the bot to resume playback of its queue.
-/// If playback is not paused or the queue is empty, it does nothing.
-/// The payload must include the guild ID.
-pub const RESUME_PLAYBACK: &str = "resume-playback";
-/// This event tells the bot to pause playback of its queue.
-/// If playback is not playing or the queue is empty, it does nothing.
-/// The payload must include the guild ID.
-pub const PAUSE_PLAYBACK: &str = "pause-playback";
-/// This event tells the bot to stop the current track and clear the whole queue.
-/// If this if for a main track, this removes all tracks, including priority one.
-/// If it is for a parallel track, it only stops that track.
-/// The payload must include the guild ID.
-pub const CLEAR_QUEUE: &str = "clear-queue";
-/// This event tells the bot to skip the current track in the queue.
-/// The payload must include the guild ID.
-pub const SKIP_TRACK: &str = "skip-track";
-/// This event tells the bot to loop the current track indefinitely.
-/// The payload must include the guild ID.
-pub const LOOP_TRACK: &str = "loop-track";
-/// This event tells the bot to seek to the given position.
-/// The payload must include the guild ID and the position as a u64.
-pub const SEEK_TRACK: &str = "seek-track";
-/// This event tells the bot to change the playback volume.
-/// The payload must include the guild ID and volume as an f32.
-pub const CHANGE_VOLUME: &str = "change-volume";
 /// This event tells the bot to mute or unmute, inverting the state.
 /// The payload must include the guild ID.
 pub const MUTE_UNMUTE: &str = "mute-unmute";
-/// This event tells the bot to reshuffle the entire queue, keeping the current
-/// track in its place.
-pub const SHUFFLE_QUEUE: &str = "shuffle-queue";
 
 /* FROM BOT TO UI */
 /// This event indicates that there was an error in a bot command. It is

@@ -97,7 +97,6 @@
     }
 
     let {
-        name = '',
         checked = $bindable(false),
         disabled = $bindable(false),
         compact = $bindable(false),

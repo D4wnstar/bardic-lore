@@ -75,15 +75,6 @@ impl ParallelTracks {
 
         info!("Stopped parallel track.")
     }
-
-    pub fn stop_all(&self) {
-        let inner = self.inner.lock();
-        for track in inner.tracks.iter() {
-            drop(track.stop())
-        }
-
-        info!("Stopped all parallel tracks.")
-    }
 }
 
 #[derive(Debug, Default)]

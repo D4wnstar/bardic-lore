@@ -46,50 +46,11 @@ export const UPDATE_TRACKS = 'update-tracks'
  * If playback is not paused or the queue is empty, it does nothing.
  * The payload must include the guild ID.
  */
-export const RESUME_PLAYBACK = 'resume-playback'
-/**
- * This event tells the bot to pause playback of its queue.
- * If playback is not playing or the queue is empty, it does nothing.
- * The payload must include the guild ID.
- */
-export const PAUSE_PLAYBACK = 'pause-playback'
-/**
- * This event tells the bot to stop the current track and clear the whole queue.
- * If this if for a main track, this removes all tracks, including priority one.
- * If it is for a parallel track, it only stops that track.
- * The payload must include the guild ID.
- */
-export const CLEAR_QUEUE = 'clear-queue'
-/**
- * This event tells the bot to skip the current track in the queue.
- * The payload must include the guild ID.
- */
-export const SKIP_TRACK = 'skip-track'
-/**
- * This event tells the bot to loop the current track indefinitely.
- * The payload must include the guild ID.
- */
-export const LOOP_TRACK = 'loop-track'
-/**
- * This event tells the bot to seek to the given position.
- * The payload must include the guild ID and the position as a u64.
- */
-export const SEEK_TRACK = 'seek-track'
-/**
- * This event tells the bot to change the playback volume.
- * The payload must include the guild ID and volume as an f32.
- */
-export const CHANGE_VOLUME = 'change-volume'
 /**
  * This event tells the bot to mute or unmute, inverting the state.
  * The payload must include the guild ID.
  */
 export const MUTE_UNMUTE = 'mute-unmute'
-/**
- * This event tells the bot to reshuffle the entire queue, keeping the current
- * track in its place.
- */
-export const SHUFFLE_QUEUE = 'shuffle-queue'
 
 /* FROM BOT TO UI */
 /**
