@@ -23,7 +23,6 @@
         active: boolean,
         recursive: boolean
     ) {
-        console.log(active)
         await invoke<AudioSource[]>('update_audio_source', {
             oldPath: oldPath,
             path: path,

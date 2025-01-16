@@ -1,13 +1,11 @@
-import { getPlayerByUuid, rgbToHex, permuteTracks } from '../utils/utils'
-import { appState } from '../stores.svelte'
+import { rgbToHex, permuteTracks } from '../utils/utils'
 import type { Track } from '../types'
 import { describe, it, expect } from 'vitest'
-import { LoopState, Player } from '$lib/state.svelte'
 
-const mockTrack: Track = {
-    title: 'Track',
-    album: 'Album',
-    artist: 'Artist',
+const mockTrack1: Track = {
+    title: 'Track1',
+    album: 'Album1',
+    artist: 'Artist1',
     duration: 123,
     extension: 'ogg',
     path: '/path/to/file.ogg',
@@ -32,31 +30,6 @@ const mockTrack3: Track = {
     uuid: '789-ghi'
 }
 
-describe('getPlayerByUuid', () => {
-    const mockPlayer = new Player({
-        playing: false,
-        position: 0,
-        mute: false,
-        loopState: LoopState.None,
-        shuffle: false,
-        volume: 0.5
-    })
-
-    it('should return the player associated with the given UUID', () => {
-        appState.parallelPlayers = [{ player: mockPlayer, track: mockTrack }]
-
-        const result = getPlayerByUuid('123-abc')
-        expect(result).toEqual(mockPlayer)
-    })
-
-    it('should return undefined if no player is found', () => {
-        appState.parallelPlayers = []
-
-        const result = getPlayerByUuid('123-abc')
-        expect(result).toBeUndefined()
-    })
-})
-
 describe('rgbToHex', () => {
     it('should convert RGB string to hexadecimal format', () => {
         const result = rgbToHex('255 128 64')
@@ -71,9 +44,9 @@ describe('rgbToHex', () => {
 
 describe('permuteTracks', () => {
     it('should permute tracks with the start track at the beginning', () => {
-        const tracks: Track[] = [mockTrack, mockTrack2, mockTrack3]
+        const tracks: Track[] = [mockTrack1, mockTrack2, mockTrack3]
         const result = permuteTracks(mockTrack2, tracks)
-        expect(result).toEqual([mockTrack2, mockTrack3, mockTrack])
+        expect(result).toEqual([mockTrack2, mockTrack3, mockTrack1])
     })
 
     it('should return undefined if the start track is not found', () => {
@@ -86,7 +59,7 @@ describe('permuteTracks', () => {
             path: '/somewhere/anywhere.mp3',
             uuid: '999999999'
         }
-        const tracks: Track[] = [mockTrack, mockTrack2, mockTrack3]
+        const tracks: Track[] = [mockTrack1, mockTrack2, mockTrack3]
         const result = permuteTracks(anotherTrack, tracks)
         expect(result).toBeUndefined()
     })

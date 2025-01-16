@@ -4,8 +4,8 @@
         UPDATE_TRACKS,
         TrackAction
     } from '$lib/events'
-    import { LoopState } from '$lib/state.svelte'
-    import { appState, type ParallelState } from '$lib/stores.svelte'
+    import { LoopState, type ParallelState } from '$lib/state.svelte'
+    import { appState } from '$lib/stores.svelte'
     import TrackProgressBar from '$lib/utils/TrackProgressBar.svelte'
     import { rgbToHex } from '$lib/utils/utils'
     import VolumeSlider from '$lib/utils/VolumeSlider.svelte'

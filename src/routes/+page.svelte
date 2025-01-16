@@ -36,7 +36,6 @@
         QUEUE_SORTED
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
-    import { getPlayerByUuid } from '$lib/utils/utils'
     import { LoopState, Player } from '$lib/state.svelte'
 
     let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
@@ -114,7 +113,9 @@
             if (ev.payload.isParallel === false) {
                 appState.player.start()
             } else {
-                const player = getPlayerByUuid(ev.payload.uuid)
+                const player = appState.parallel.getPlayerByUuid(
+                    ev.payload.uuid
+                )
                 if (player) player.start()
             }
         })
@@ -124,7 +125,9 @@
             if (ev.payload.isParallel === false) {
                 appState.player.stop()
             } else {
-                const player = getPlayerByUuid(ev.payload.uuid)
+                const player = appState.parallel.getPlayerByUuid(
+                    ev.payload.uuid
+                )
                 if (player) player.stop()
             }
         })
@@ -170,11 +173,11 @@
                         appState.player.stop()
                     }
                 } else {
-                    const endedTrack = appState.parallelPlayers.find(
-                        ({ track }) => track.uuid !== ev.payload.uuid
-                    )?.track
+                    const endedTrack = appState.parallel.tracks.find(
+                        (track) => track.uuid !== ev.payload.uuid
+                    )
                     // Delete both the track and the player, since it is no longer needed
-                    appState.parallelPlayers = appState.parallelPlayers.filter(
+                    appState.parallel.states = appState.parallel.states.filter(
                         ({ track }) => track.uuid !== ev.payload.uuid
                     )
                     // Update recent tracks if anything was removed
@@ -190,7 +193,9 @@
             if (ev.payload.isParallel === false) {
                 appState.player.position = 0
             } else {
-                const player = getPlayerByUuid(ev.payload.uuid)
+                const player = appState.parallel.getPlayerByUuid(
+                    ev.payload.uuid
+                )
                 if (player) player.position = 0
             }
         })
@@ -202,7 +207,9 @@
                 if (ev.payload.isParallel === false) {
                     appState.player.start()
                 } else {
-                    const player = getPlayerByUuid(ev.payload.uuid)
+                    const player = appState.parallel.getPlayerByUuid(
+                        ev.payload.uuid
+                    )
                     if (player) player.start()
                 }
             }
@@ -211,7 +218,9 @@
 
         let unlisten7 = await listen<any>(UPDATE_PLAYER, (ev) => {
             if (ev.payload['uuid']) {
-                const player = getPlayerByUuid(ev.payload['uuid'])
+                const player = appState.parallel.getPlayerByUuid(
+                    ev.payload['uuid']
+                )
                 if (!player) return
                 player.position = ev.payload['position'] ?? player.position
             } else {
@@ -235,7 +244,7 @@
                     shuffle: false,
                     mute: false
                 })
-                appState.parallelPlayers.push({
+                appState.parallel.states.push({
                     track: ev.payload.track,
                     player
                 })
@@ -244,7 +253,7 @@
         unlisten.push(unlisten8)
 
         let unlisten9 = await listen<any>(QUEUE_EMPTIED, (_ev) => {
-            let current = appState.playlist.current()
+            const current = appState.playlist.current()
             if (current) {
                 appState.recentlyPlayed.push(current)
             }
@@ -254,18 +263,17 @@
         unlisten.push(unlisten9)
 
         let unlisten10 = await listen<any>(LEFT_VOICE_CHANNEL, (_ev) => {
-            let current = appState.playlist.current()
+            const current = appState.playlist.current()
             if (current) {
                 appState.recentlyPlayed.push(current)
             }
-            appState.playlist.clear()
-            appState.player.reset()
-
-            for (const state of appState.parallelPlayers) {
-                appState.recentlyPlayed.push(state.track)
-                state.player.stop()
+            for (const track of appState.parallel.tracks) {
+                appState.recentlyPlayed.push(track)
             }
-            appState.parallelPlayers = []
+
+            appState.playlist.clear()
+            appState.parallel.clear()
+            appState.player.reset()
         })
         unlisten.push(unlisten10)
 

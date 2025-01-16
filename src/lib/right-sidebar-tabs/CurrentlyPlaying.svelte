@@ -14,10 +14,10 @@
             }}
         />
     {/if}
-    {#if appState.parallelPlayers.length > 0}
+    {#if appState.parallel.states.length > 0}
         <div class="pl-1"><strong>Overlayed</strong></div>
     {/if}
-    {#each appState.parallelPlayers as state}
+    {#each appState.parallel.states as state}
         <TrackControls {state} parallel />
     {/each}
 </div>

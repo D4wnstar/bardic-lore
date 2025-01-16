@@ -1,22 +1,4 @@
-import type { Player } from '$lib/state.svelte'
-import { appState } from '$lib/stores.svelte'
 import type { CachedTrack } from '$lib/types'
-
-/**
- * Find the parallel `Player` associated with the track of the given path.
- * @param path The filepath to search by
- * @returns A `Player`, if any was found
- */
-export function getPlayerByUuid(uuid: string): Player | undefined {
-    const maybePlayer = appState.parallelPlayers.find(
-        ({ track }) => track.uuid === uuid
-    )
-    if (!maybePlayer) {
-        console.warn(`Failed to find track with UUID ${uuid}`)
-        return
-    }
-    return maybePlayer.player
-}
 
 /**
  * Converts a decimal RGB string into its hexadecimal form.

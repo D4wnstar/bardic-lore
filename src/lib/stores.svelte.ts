@@ -2,7 +2,7 @@
 // uses to keep things synchronized between the front- and backend and also for
 // persistent storage.
 
-import { LoopState, Player, Playlist } from './state.svelte'
+import { LoopState, Parallel, Player, Playlist } from './state.svelte'
 import type { CachedTrack, Track } from './types'
 
 // All keys should be written in kebab-case.
@@ -42,11 +42,6 @@ export const DISCORD_FILENAME = 'discord.json'
 export const GUILDS_SETTING = 'guilds'
 
 /* SVELTE STATE */
-export type ParallelState = {
-    track: Track
-    player: Player
-}
-
 export type AppState = {
     guildId: number
     player: Player
@@ -54,7 +49,7 @@ export type AppState = {
     availableTracks: CachedTrack[]
     playlist: Playlist
     recentlyPlayed: Track[]
-    parallelPlayers: ParallelState[]
+    parallel: Parallel
 }
 
 export const appState: AppState = $state({
@@ -71,7 +66,7 @@ export const appState: AppState = $state({
     availableTracks: [],
     playlist: new Playlist([], [], []),
     recentlyPlayed: [],
-    parallelPlayers: []
+    parallel: new Parallel([])
 })
 
 /**
