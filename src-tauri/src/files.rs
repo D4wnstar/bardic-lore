@@ -10,7 +10,7 @@ use serde_json::json;
 use symphonia::core::{
     formats::FormatOptions,
     io::MediaSourceStream,
-    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+    meta::{MetadataOptions, MetadataRevision, StandardTagKey, StandardVisualKey, Visual},
     probe::Hint,
     units::Time,
 };
@@ -32,7 +32,8 @@ pub struct Track {
     pub artist: Option<String>,
     pub duration: Option<u64>,
     pub path: PathBuf,
-    pub extension: String,
+    pub cover_filetype: Option<String>,
+    pub cover_data: Option<Vec<u8>>,
 }
 
 impl PartialEq for Track {
@@ -167,6 +168,7 @@ pub async fn update_audio_source(app: AppHandle, source: AudioSource) -> Result<
 pub async fn update_tracks_from_sources(
     app: AppHandle,
     sources: Option<HashSet<AudioSource>>,
+    reset: Option<bool>,
 ) -> Result<(HashSet<Track>, HashSet<Track>), Error> {
     // Tracks from active sources get added, inactive ones get removed
     let mut tracks_to_add: HashSet<Track> = HashSet::new();
@@ -205,8 +207,14 @@ pub async fn update_tracks_from_sources(
         }
     }
 
-    add_tracks_to_store(&app, tracks_to_add.clone())?;
-    remove_tracks_from_store(&app, tracks_to_remove.clone())?;
+    if let Some(_) = reset {
+        let store = app.store(TRACKS_FILENAME)?;
+        store.set(TRACKS_SETTING, serde_json::to_value(tracks_to_add.clone())?);
+        store.save()?;
+    } else {
+        add_tracks_to_store(&app, tracks_to_add.clone())?;
+        remove_tracks_from_store(&app, tracks_to_remove.clone())?;
+    }
 
     return Ok((tracks_to_add.clone(), tracks_to_remove.clone()));
 }
@@ -223,27 +231,39 @@ fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Op
     let file_ext = path.extension().map(|s| s.to_str()).flatten().unwrap_or("");
     let file_ext_with_dot = format!(".{file_ext}");
 
-    let (album, artist, track_name, duration) = get_audio_metadata(&path, &file_ext)
-        .unwrap_or_else(|_err| {
-            let track_name = filename.to_string().replace(&file_ext_with_dot, "");
-            return (Some(track_name), None, None, None);
-        });
+    let metadata = get_audio_metadata(&path, &file_ext).unwrap_or(TrackMetadata {
+        track_name: Some(filename.to_string().replace(&file_ext_with_dot, "")),
+        album: None,
+        artist: None,
+        duration: None,
+        front_cover_data: None,
+        media_type: None,
+    });
 
     return Some(Track {
-        title: track_name.unwrap_or(filename.to_string().replace(&file_ext_with_dot, "")),
-        album,
-        artist,
-        duration: duration.map(|t| t.seconds),
+        title: metadata
+            .track_name
+            .unwrap_or(filename.to_string().replace(&file_ext_with_dot, "")),
+        album: metadata.album,
+        artist: metadata.artist,
+        duration: metadata.duration.map(|t| t.seconds),
         path: path.clone(),
-        extension: file_ext.to_string(),
+        cover_data: metadata.front_cover_data,
+        cover_filetype: metadata.media_type,
     });
 }
 
+struct TrackMetadata {
+    track_name: Option<String>,
+    album: Option<String>,
+    artist: Option<String>,
+    media_type: Option<String>,
+    front_cover_data: Option<Vec<u8>>,
+    duration: Option<Time>,
+}
+
 /// Get some audio metadata from the file at `path`.
-fn get_audio_metadata(
-    path: &PathBuf,
-    file_ext: &str,
-) -> Result<(Option<String>, Option<String>, Option<String>, Option<Time>), Error> {
+fn get_audio_metadata(path: &PathBuf, file_ext: &str) -> Result<TrackMetadata, Error> {
     let source = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(source), Default::default());
     let mut hint = Hint::new();
@@ -257,6 +277,8 @@ fn get_audio_metadata(
     let mut track_name = None;
     let mut album = None;
     let mut artist = None;
+    let mut media_type = None;
+    let mut front_cover_data = None;
 
     let mut get_tags = |metadata: &MetadataRevision| {
         for tag in metadata.tags() {
@@ -266,6 +288,18 @@ fn get_audio_metadata(
                     StandardTagKey::Artist => artist = Some(tag.value.to_string()),
                     StandardTagKey::Composer => artist = Some(tag.value.to_string()),
                     StandardTagKey::TrackTitle => track_name = Some(tag.value.to_string()),
+                    _ => (),
+                }
+            }
+        }
+
+        for visual in metadata.visuals() {
+            if let Some(usage) = visual.usage {
+                match usage {
+                    StandardVisualKey::FrontCover => {
+                        media_type = Some(visual.media_type.clone());
+                        front_cover_data = Some(visual.data.clone().into_vec());
+                    }
                     _ => (),
                 }
             }
@@ -296,7 +330,14 @@ fn get_audio_metadata(
         }
     };
 
-    return Ok((album, artist, track_name, duration));
+    return Ok(TrackMetadata {
+        track_name,
+        album,
+        artist,
+        media_type,
+        front_cover_data,
+        duration,
+    });
 }
 
 /* CONVENIENCE FUNCTIONS */

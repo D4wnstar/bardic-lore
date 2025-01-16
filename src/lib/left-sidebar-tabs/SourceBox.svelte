@@ -18,7 +18,6 @@
     const toast: ToastContext = getContext('toast')
 
     async function updateAudioSource() {
-        console.log('Updating', $state.snapshot(source))
         const wasUpdated = await invoke<boolean>('update_audio_source', {
             source
         }).catch((reason) => {
@@ -48,8 +47,8 @@
         })
 
         if (wasDeleted) {
+            await refreshTracks([{ ...source, active: false }])
             await getAudioSources()
-            await refreshTracks([source])
         }
     }
 

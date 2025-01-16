@@ -4,12 +4,18 @@
     import { appState } from '$lib/stores.svelte'
     import { fade, slide } from 'svelte/transition'
     import { flip } from 'svelte/animate'
+    import { AudioLines } from 'lucide-svelte'
+    import { rgbToHex } from '$lib/utils/utils'
 
     let tabState = $state('queue')
     let queued = $derived(appState.playlist.queued().queued)
     let priority = $derived(appState.playlist.queued().priority)
 
-    let maxTracksShown = 30
+    let maxTracksShown = 20
+
+    let iconColor = rgbToHex(
+        getComputedStyle(document.body).getPropertyValue('--color-surface-500')
+    )
 </script>
 
 <div class="px-3 overflow-auto">
@@ -40,6 +46,21 @@
                             <QueuedTrack track={queued[0]} />
                         </div>
                     {/key}
+                {:else if priority.length === 0}
+                    <div
+                        class="flex flex-col gap-2"
+                        in:fade={{ delay: 200, duration: 500 }}
+                    >
+                        <p class="text-surface-800-200 text-center">
+                            This where your songs will be once you play
+                            something.
+                        </p>
+                        <AudioLines
+                            size="96"
+                            color={iconColor}
+                            class="self-center"
+                        />
+                    </div>
                 {/if}
 
                 {#if priority.length > 0}
@@ -50,7 +71,7 @@
                         <strong>Up next</strong>
                     </p>
                 {/if}
-                {#each priority as track}
+                {#each priority as track (track)}
                     <div transition:slide={{ axis: 'y' }}>
                         <QueuedTrack {track} />
                     </div>
@@ -64,7 +85,7 @@
                         <strong>Up next from the playlist</strong>
                     </p>
                 {/if}
-                {#each queued.slice(1, maxTracksShown) as track}
+                {#each queued.slice(1, maxTracksShown) as track (track)}
                     <div transition:slide={{ axis: 'y' }}>
                         <QueuedTrack {track} />
                     </div>
@@ -79,9 +100,21 @@
                 {/if}
             </Tabs.Panel>
             <Tabs.Panel value="recent" classes="space-y-2 pb-5">
-                {#each appState.recentlyPlayed as track (track)}
+                {#each appState.recentlyPlayed.slice(0, maxTracksShown) as track (track)}
                     <div animate:flip={{ duration: 300 }}>
                         <QueuedTrack {track} />
+                    </div>
+                {:else}
+                    <div class="flex flex-col gap-2">
+                        <p class="text-surface-800-200 text-center">
+                            This where your songs will be once you play
+                            something.
+                        </p>
+                        <AudioLines
+                            size="96"
+                            color={iconColor}
+                            class="self-center"
+                        />
                     </div>
                 {/each}
             </Tabs.Panel>

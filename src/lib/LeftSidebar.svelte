@@ -2,7 +2,7 @@
     import { Bot, Folder, PanelRightOpen, Settings, Tag } from 'lucide-svelte'
     import Tags from '$lib/left-sidebar-tabs/Tags.svelte'
     import AudioSources from '$lib/left-sidebar-tabs/AudioSources.svelte'
-    import BotSettings from './left-sidebar-tabs/BotSettings.svelte'
+    import BotControls from './left-sidebar-tabs/BotControls.svelte'
     import AppSettings from './left-sidebar-tabs/AppSettings.svelte'
     import { fade, slide } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
@@ -56,7 +56,7 @@
     class="my-2 max-w-[300px] border-r-[1px] border-surface-100-900 px-2 flex flex-col overflow-hidden"
     style={`min-width: ${minWidth}px`}
 >
-    <div class="flex w-full gap-1 min-h-12">
+    <div class="flex w-full gap-1 pb-2">
         <button
             class="btn-icon rounded-none hover:preset-filled-surface-500"
             onclick={openCloseSidebar}><PanelRightOpen /></button
@@ -86,6 +86,7 @@
             >
         {/if}
     </div>
+    <hr class="hr" />
 
     {#if visible}
         <div
@@ -97,7 +98,7 @@
             {:else if tabIndex === 2}
                 <AudioSources {getTracks} />
             {:else if tabIndex === 3}
-                <BotSettings />
+                <BotControls />
             {:else if tabIndex === 4}
                 <AppSettings />
             {/if}

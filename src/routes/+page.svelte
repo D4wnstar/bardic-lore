@@ -37,6 +37,12 @@
     } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
     import { LoopState, Player } from '$lib/state.svelte'
+    import { Folder, Wind } from 'lucide-svelte'
+    import { rgbToHex } from '$lib/utils/utils'
+
+    let iconColor = rgbToHex(
+        getComputedStyle(document.body).getPropertyValue('--color-surface-500')
+    )
 
     let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
     $effect(() => {
@@ -336,15 +342,24 @@
         <div class="flex grow min-h-0">
             <div class="flex grow flex-col">
                 <SearchBar {filterTracks} />
-                <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
-                    {#each tracks as { track, mask }}
-                        {#if mask}
+                {#if tracks.length > 0}
+                    <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
+                        {#each tracks.filter((t) => t.mask) as { track }}
                             <SongBox {track} />
-                        {/if}
-                    {:else}
-                        <div class="type-scale-5">No songs!</div>
-                    {/each}
-                </div>
+                        {/each}
+                    </div>
+                {:else}
+                    <div
+                        class="type-scale-6 text-surface-800-200 text-center flex flex-col gap-2 justify-center items-center h-full"
+                    >
+                        <p>It's a little empty here...</p>
+                        <p>
+                            Use the <Folder class="inline mx-1" /> sidebar on the
+                            left to add some music!
+                        </p>
+                        <Wind size="144" color={iconColor} />
+                    </div>
+                {/if}
             </div>
         </div>
         <PlayerBar />

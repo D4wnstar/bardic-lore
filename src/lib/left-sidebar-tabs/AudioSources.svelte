@@ -35,18 +35,20 @@
             })
         })
 
-        await getAudioSources()
-        if (newSources) await refreshTracks(newSources)
+        if (newSources) {
+            await getAudioSources()
+            await refreshTracks(newSources)
+        }
     }
 
-    async function refreshTracks(sources?: AudioSource[]) {
+    async function refreshTracks(sources?: AudioSource[], reset?: boolean) {
         toast.create({
             title: '',
             description: 'Refreshing files. This may take a few seconds.',
             type: 'info'
         })
 
-        await invoke('update_tracks_from_sources', { sources })
+        await invoke('update_tracks_from_sources', { sources, reset })
             .then(() => {
                 toast.create({
                     title: '',
@@ -72,8 +74,10 @@
 </script>
 
 <div id="sources-sidebar" class="flex flex-col h-full min-h-0 pb-5 space-y-2">
-    <h3 class="h3 text-center">Audio Sources</h3>
-    <small class="small px-3 text-justify">
+    <h3 class="type-scale-7 heading-font-weight px-2 text-primary-900-100">
+        Audio Sources
+    </h3>
+    <small class="small px-2 text-justify">
         Audio Sources are the folders in which your audio files are contained.
         Audio files in these folders (and optionally sub-folders) will appear in
         the menu.
@@ -94,7 +98,10 @@
         </button>
         <button
             class="preset-outlined-primary-400-600 btn self-center"
-            onclick={async () => await refreshTracks()}
+            onclick={async () => {
+                await getAudioSources()
+                await refreshTracks(undefined, true)
+            }}
         >
             Refresh files
         </button>

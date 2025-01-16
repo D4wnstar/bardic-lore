@@ -326,7 +326,8 @@ async fn create_playlist(
             "artist": track_data.artist,
             "duration": track_data.duration,
             "path": track_data.path,
-            "extension": track_data.extension
+            "cover_data": track_data.cover_data,
+            "cover_filetype": track_data.cover_filetype,
         }));
     }
     let out = serde_json::to_value(&response_tracks).unwrap();
@@ -395,7 +396,8 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle,
                 "artist": payload.trackData.artist,
                 "duration": payload.trackData.duration,
                 "path": payload.trackData.path,
-                "extension": payload.trackData.extension
+                "cover_data": payload.trackData.cover_data,
+                "cover_filetype": payload.trackData.cover_filetype,
             },
             "parallel": false,
             "queueMethod": payload.queueMethod,
@@ -433,7 +435,8 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
                     "artist": payload.trackData.artist,
                     "duration": payload.trackData.duration,
                     "path": payload.trackData.path,
-                    "extension": payload.trackData.extension
+                    "cover_data": payload.trackData.cover_data,
+                    "cover_filetype": payload.trackData.cover_filetype,
                 },
                 "parallel": true,
                 "overwrite": false,

@@ -73,7 +73,7 @@
 
         if (makeToast) {
             toast.create({
-                description: 'Refreshed servers',
+                description: 'Refreshed servers.',
                 type: 'info'
             })
         }
@@ -152,9 +152,12 @@
 </script>
 
 <div id="sources-sidebar" class="flex flex-col h-full min-h-0 pb-4 space-y-2">
-    <h3 class="h3 text-center">Bot Settings</h3>
+    <h3 class="type-scale-7 heading-font-weight px-2 text-primary-900-100">
+        Bot Controls
+    </h3>
     <small class="small px-2 text-justify">
-        These settings control the Discord bot.
+        You need a token for Bardic Lore to communicate to the bot. Copy yours
+        below.
     </small>
 
     <div class="px-2"><strong>Bot token</strong></div>

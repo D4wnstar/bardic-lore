@@ -12,11 +12,12 @@ export type AudioSource = {
  */
 export type CachedTrack = {
     title: string
-    album: string | undefined
-    artist: string | undefined
-    duration: number | undefined
+    album?: string
+    artist?: string
+    duration?: number
     path: string
-    extension: string
+    cover_data?: Uint8Array
+    cover_filetype?: string
 }
 
 /**
@@ -27,11 +28,12 @@ export type CachedTrack = {
 export type Track = {
     uuid: string
     title: string
-    album: string | undefined
-    artist: string | undefined
-    duration: number | undefined
+    album?: string
+    artist?: string
+    duration?: number
     path: string
-    extension: string
+    cover_data?: Uint8Array
+    cover_filetype?: string
 }
 
 // serde_json can't know what's inside of a JSON value
