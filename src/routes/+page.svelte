@@ -49,9 +49,11 @@
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         const cachedTracks =
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
-        tracks = cachedTracks.map((track) => {
-            return { track, mask: true }
-        })
+        tracks = cachedTracks
+            .map((track) => {
+                return { track, mask: true }
+            })
+            .toSorted((a, b) => a.track.title.localeCompare(b.track.title))
     }
 
     function filterTracks(searchTerm: string) {

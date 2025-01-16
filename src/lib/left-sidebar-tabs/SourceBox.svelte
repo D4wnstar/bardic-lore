@@ -9,25 +9,18 @@
 
     interface Props {
         source: AudioSource
-        refreshTracks: Function
-        getAudioSources: Function
+        refreshTracks: (sources?: AudioSource[]) => Promise<void>
+        getAudioSources: () => Promise<void>
     }
 
     let { source, refreshTracks, getAudioSources }: Props = $props()
 
     const toast: ToastContext = getContext('toast')
 
-    async function updateAudioSource(
-        oldPath: string,
-        path: string,
-        active: boolean,
-        recursive: boolean
-    ) {
-        await invoke<AudioSource[]>('update_audio_source', {
-            oldPath: oldPath,
-            path: path,
-            active: active,
-            recursive: recursive
+    async function updateAudioSource() {
+        console.log('Updating', $state.snapshot(source))
+        const wasUpdated = await invoke<boolean>('update_audio_source', {
+            source
         }).catch((reason) => {
             console.error(reason)
             toast.create({
@@ -37,12 +30,14 @@
             })
         })
 
-        await refreshTracks()
+        if (wasUpdated) {
+            await refreshTracks([source])
+        }
     }
 
-    async function deleteAudioSource(path: string) {
-        await invoke<AudioSource[]>('delete_audio_source', {
-            path: path
+    async function deleteAudioSource() {
+        const wasDeleted = await invoke<AudioSource[]>('delete_audio_source', {
+            source
         }).catch((reason) => {
             console.error(reason)
             toast.create({
@@ -52,17 +47,20 @@
             })
         })
 
-        await getAudioSources()
-        await refreshTracks()
+        if (wasDeleted) {
+            await getAudioSources()
+            await refreshTracks([source])
+        }
     }
 
     let namePromise = $derived(basename(source.path))
-    let active = $state(source.active)
-    let recursive = $state(source.recursive)
 </script>
 
 <div
-    class={`preset-filled-surface-100-900 !bg-opacity-50 mx-2 rounded-md border-[1px] border-primary-100-900 !border-opacity-70 px-4 py-2 ${active ? '' : 'opacity-50'}`}
+    class={{
+        'preset-filled-surface-100-900 !bg-opacity-50 mx-2 rounded-md border-[1px] border-primary-100-900 !border-opacity-70 px-4 py-2': true,
+        'opacity-50': !source.active
+    }}
 >
     <div class="flex mb-2">
         <h4 class="type-scale-5 grow text-secondary-700-300">
@@ -70,7 +68,7 @@
         </h4>
         <button
             class="btn-icon rounded hover:preset-filled-surface-100-900"
-            onclick={() => deleteAudioSource(source.path)}
+            onclick={deleteAudioSource}
         >
             <Trash2 />
         </button>
@@ -79,17 +77,14 @@
         <p>Active</p>
         <ZaglessSwitch
             name="active"
-            bind:checked={active}
-            onCheckedChange={(_state) =>
-                updateAudioSource(source.path, source.path, active, recursive)}
+            bind:checked={source.active}
+            onCheckedChange={updateAudioSource}
         />
         <p>Include subfolders</p>
         <ZaglessSwitch
             name="recursive"
-            bind:checked={recursive}
-            onCheckedChange={(_state) => {
-                updateAudioSource(source.path, source.path, active, recursive)
-            }}
+            bind:checked={source.recursive}
+            onCheckedChange={updateAudioSource}
         />
     </div>
 </div>

@@ -24,7 +24,9 @@
     }
 
     async function selectFolder() {
-        await invoke<AudioSource[]>('add_audio_sources').catch((err) => {
+        const newSources = await invoke<AudioSource[]>(
+            'add_audio_sources'
+        ).catch((err) => {
             console.error(err)
             toast.create({
                 title: 'Error',
@@ -32,17 +34,19 @@
                 type: 'error'
             })
         })
+
         await getAudioSources()
-        await refreshTracks()
+        if (newSources) await refreshTracks(newSources)
     }
 
-    async function refreshTracks() {
+    async function refreshTracks(sources?: AudioSource[]) {
         toast.create({
             title: '',
             description: 'Refreshing files. This may take a few seconds.',
             type: 'info'
         })
-        await invoke('refresh_audio_files')
+
+        await invoke('update_tracks_from_sources', { sources })
             .then(() => {
                 toast.create({
                     title: '',
@@ -60,6 +64,7 @@
                     type: 'error'
                 })
             })
+
         await getTracks()
     }
 
@@ -89,7 +94,7 @@
         </button>
         <button
             class="preset-outlined-primary-400-600 btn self-center"
-            onclick={refreshTracks}
+            onclick={async () => await refreshTracks()}
         >
             Refresh files
         </button>

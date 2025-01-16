@@ -1,8 +1,8 @@
 use std::{
     collections::HashSet,
     fs::{File, FileType},
+    hash::Hash,
     path::PathBuf,
-    sync::Arc,
 };
 
 use serde::{Deserialize, Serialize};
@@ -14,9 +14,9 @@ use symphonia::core::{
     probe::Hint,
     units::Time,
 };
-use tauri::{AppHandle, Wry};
+use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_store::{Store, StoreExt};
+use tauri_plugin_store::StoreExt;
 use walkdir::WalkDir;
 
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
 };
 
 /* DATA STRUCTURES */
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Track {
     pub title: String,
     pub album: Option<String>,
@@ -34,6 +34,14 @@ pub struct Track {
     pub path: PathBuf,
     pub extension: String,
 }
+
+impl PartialEq for Track {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl Eq for Track {}
 
 impl PartialOrd for Track {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -47,7 +55,14 @@ impl Ord for Track {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+// Hashing for a Track should be delegated to its path
+impl Hash for Track {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AudioSource {
     pub path: PathBuf,
     pub recursive: bool,
@@ -63,6 +78,22 @@ impl AudioSource {
         };
     }
 }
+
+// AudioSources are equivalent based on their path.
+impl PartialEq for AudioSource {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+// Hashing for an AudioSource should be delegated to its path
+impl Hash for AudioSource {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
+impl Eq for AudioSource {}
 
 impl PartialOrd for AudioSource {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -85,77 +116,64 @@ impl Ord for AudioSource {
 }
 
 /* TAURI COMMANDS */
+/// Add audio sources with a folder picker dialog.
 #[tauri::command]
 pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, Error> {
     let paths = app.dialog().file().blocking_pick_folders();
-
-    let store = app.store(SETTINGS_FILENAME)?;
 
     if let Some(paths) = paths {
         let sources = paths
             .iter()
             .map(|path| AudioSource::new(path.clone().into_path().unwrap()));
-        let mut audio_sources = get_sources_from_store(&store)?;
+        let mut audio_sources = get_sources_from_store(&app)?;
         audio_sources.extend(sources);
-        set_sources_in_store(&audio_sources, &store)?;
+        set_sources_in_store(&app, &audio_sources)?;
         return Ok(audio_sources);
     } else {
         return Err(Error::Cancelled("No paths selected".to_string()));
     }
 }
 
+/// Delete the given audio source if it exists, returning whether it did.
 #[tauri::command]
-pub async fn delete_audio_source(
-    path: PathBuf,
-    app: AppHandle,
-) -> Result<HashSet<AudioSource>, Error> {
-    let store = app.store(SETTINGS_FILENAME)?;
-    let mut audio_sources = get_sources_from_store(&store)?;
-
-    let source_to_remove: Option<AudioSource> =
-        audio_sources.iter().find(|src| src.path == path).cloned();
-
-    if let Some(source) = source_to_remove {
-        audio_sources.remove(&source);
+pub async fn delete_audio_source(app: AppHandle, source: AudioSource) -> Result<bool, Error> {
+    let mut audio_sources = get_sources_from_store(&app)?;
+    // Path equality is taken care of by PartialEq and Hash
+    let removed = audio_sources.remove(&source);
+    if removed {
+        set_sources_in_store(&app, &audio_sources)?;
     }
 
-    set_sources_in_store(&audio_sources, &store)?;
-
-    return Ok(audio_sources.clone());
+    return Ok(removed);
 }
 
+/// Overwrites the audio source with the same path as the given one. Returns whether
+/// something was updated or not.
 #[tauri::command]
-pub async fn update_audio_source(
+pub async fn update_audio_source(app: AppHandle, source: AudioSource) -> Result<bool, Error> {
+    let mut audio_sources = get_sources_from_store(&app)?;
+    // Overwriting by equal path is taken care of by PartialEq and Hash
+    let updated = audio_sources.replace(source.clone());
+    if updated.is_some() {
+        set_sources_in_store(&app, &audio_sources)?;
+    }
+
+    return Ok(updated.is_some());
+}
+
+/// Update the track cache with the given sources. Active sources add track,
+/// inactive sources remove them.
+#[tauri::command]
+pub async fn update_tracks_from_sources(
     app: AppHandle,
-    old_path: PathBuf,
-    path: PathBuf,
-    active: bool,
-    recursive: bool,
-) -> Result<HashSet<AudioSource>, Error> {
-    let updated_source = AudioSource {
-        path,
-        active,
-        recursive,
-    };
+    sources: Option<HashSet<AudioSource>>,
+) -> Result<(HashSet<Track>, HashSet<Track>), Error> {
+    // Tracks from active sources get added, inactive ones get removed
+    let mut tracks_to_add: HashSet<Track> = HashSet::new();
+    let mut tracks_to_remove: HashSet<Track> = HashSet::new();
+    let sources = sources.unwrap_or_else(|| get_sources_from_store(&app).unwrap_or_default());
 
-    let store = app.store(SETTINGS_FILENAME)?;
-    let mut audio_sources = delete_audio_source(old_path, app.clone()).await?;
-    audio_sources.insert(updated_source);
-    set_sources_in_store(&audio_sources, &store)?;
-    return Ok(audio_sources.clone());
-}
-
-#[tauri::command]
-pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
-    let settings_store = app.store(SETTINGS_FILENAME)?;
-    let audio_sources = get_sources_from_store(&settings_store)?;
-
-    let mut tracks: Vec<Track> = vec![];
-
-    for source in audio_sources {
-        if !source.active {
-            continue;
-        }
+    for source in sources {
         if source.recursive {
             for entry in WalkDir::new(source.path).into_iter().filter_map(|e| e.ok()) {
                 if let Some(track) = make_track(
@@ -163,7 +181,11 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
                     entry.file_name().to_string_lossy().to_string(),
                     entry.path().to_path_buf(),
                 ) {
-                    tracks.push(track);
+                    if source.active {
+                        tracks_to_add.insert(track);
+                    } else {
+                        tracks_to_remove.insert(track);
+                    }
                 }
             }
         } else {
@@ -173,19 +195,23 @@ pub async fn refresh_audio_files(app: AppHandle) -> Result<Vec<Track>, Error> {
                     entry.file_name().to_string_lossy().to_string(),
                     entry.path(),
                 ) {
-                    tracks.push(track);
+                    if source.active {
+                        tracks_to_add.insert(track);
+                    } else {
+                        tracks_to_remove.insert(track);
+                    }
                 }
             }
         }
     }
 
-    tracks.sort();
+    add_tracks_to_store(&app, tracks_to_add.clone())?;
+    remove_tracks_from_store(&app, tracks_to_remove.clone())?;
 
-    let tracks_store = app.store(TRACKS_FILENAME)?;
-    tracks_store.set(TRACKS_SETTING, serde_json::to_value(tracks.clone())?);
-    return Ok(tracks.clone());
+    return Ok((tracks_to_add.clone(), tracks_to_remove.clone()));
 }
 
+/// Attempt to transform the file at `path` into a `Track`.
 fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Option<Track> {
     if let None = filetype {
         return None;
@@ -213,6 +239,7 @@ fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Op
     });
 }
 
+/// Get some audio metadata from the file at `path`.
 fn get_audio_metadata(
     path: &PathBuf,
     file_ext: &str,
@@ -274,7 +301,8 @@ fn get_audio_metadata(
 
 /* CONVENIENCE FUNCTIONS */
 /// Type safe getter for audio sources. Will return an empty HashSet if not found in store.
-fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource>, Error> {
+fn get_sources_from_store(app: &AppHandle) -> Result<HashSet<AudioSource>, Error> {
+    let store = app.store(SETTINGS_FILENAME)?;
     let value = store.get(AUDIO_SOURCES_SETTING).unwrap_or(json!([]));
     let sources = serde_json::from_value(value)?;
     return Ok(sources);
@@ -282,12 +310,46 @@ fn get_sources_from_store(store: &Arc<Store<Wry>>) -> Result<HashSet<AudioSource
 
 /// Type safe setter for audio sources. Sorts sources alphabetically before saving.
 fn set_sources_in_store(
+    app: &AppHandle,
     audio_sources: &HashSet<AudioSource>,
-    store: &Arc<Store<Wry>>,
 ) -> Result<(), Error> {
+    let store = app.store(SETTINGS_FILENAME)?;
     let mut vec: Vec<&AudioSource> = audio_sources.iter().collect();
     vec.sort();
     store.set(AUDIO_SOURCES_SETTING, serde_json::to_value(vec)?);
+    store.save()?;
 
     return Ok(());
+}
+
+/// Type safe getter for tracks. Will return an empty HashSet if not found in store.
+fn get_tracks_from_store(app: &AppHandle) -> Result<HashSet<Track>, Error> {
+    let store = app.store(TRACKS_FILENAME)?;
+    let value = store.get(TRACKS_SETTING).unwrap_or(json!([]));
+    let tracks = serde_json::from_value(value)?;
+    return Ok(tracks);
+}
+
+/// Type safe setter for tracks. This will add all the given tracks into the store,
+/// ignoring duplicates.
+fn add_tracks_to_store(app: &AppHandle, tracks: HashSet<Track>) -> Result<(), Error> {
+    let store = app.store(TRACKS_FILENAME)?;
+    let mut curr_tracks = get_tracks_from_store(app)?;
+    curr_tracks.extend(tracks);
+    store.set(TRACKS_SETTING, serde_json::to_value(curr_tracks)?);
+    store.save()?;
+
+    Ok(())
+}
+
+/// Type safe setter for tracks. This will remove all the given tracks from the store,
+/// leaving all other tracks untouched.
+fn remove_tracks_from_store(app: &AppHandle, tracks: HashSet<Track>) -> Result<(), Error> {
+    let store = app.store(TRACKS_FILENAME)?;
+    let mut curr_tracks = get_tracks_from_store(app)?;
+    curr_tracks = curr_tracks.difference(&tracks).cloned().collect();
+    store.set(TRACKS_SETTING, serde_json::to_value(curr_tracks)?);
+    store.save()?;
+
+    Ok(())
 }
