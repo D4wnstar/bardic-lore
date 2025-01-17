@@ -8,6 +8,8 @@ mod stores;
 use discord::IsSerenityClientOn;
 use serde_json::json;
 use stores::{DISCORD_FILENAME, GUILDS_SETTING};
+use tauri::Manager;
+use tauri_plugin_fs::FsExt;
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, thiserror::Error)]
@@ -68,6 +70,9 @@ pub async fn run() {
             // Reset Discord guilds on startup to avoid stale data
             let store = app.store(DISCORD_FILENAME)?;
             store.set(GUILDS_SETTING, json!([]));
+
+            let scope = app.fs_scope();
+            scope.allow_directory(app.path().app_cache_dir()?, true)?;
 
             return Ok(());
         })

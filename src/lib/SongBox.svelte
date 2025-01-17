@@ -14,7 +14,8 @@
     import ContextMenu from './ContextMenu.svelte'
     import { Layers, Plus, Replace } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
-    import { permuteTracks } from './utils/utils'
+    import { getCover, permuteTracks } from './utils/utils'
+    import { onMount } from 'svelte'
 
     interface Props {
         track: CachedTrack
@@ -25,6 +26,7 @@
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
     let contextMenuY = $state(0)
+    let coverImage: string | undefined = $state()
 
     function handleContextMenu(event: MouseEvent) {
         event.preventDefault()
@@ -76,17 +78,34 @@
             } satisfies PlayParallelPayload)
         }
     }
+
+    onMount(async () => {
+        coverImage = await getCover(track.cover_path, track.cover_filetype)
+    })
 </script>
 
 <button
-    class="card card-hover preset-filled-surface-100-900 !bg-opacity-50 flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900"
+    class={{
+        'card card-hover aspect-square flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900': true,
+        'relative overflow-hidden': coverImage,
+        'preset-filled-surface-100-900 !bg-opacity-50': !coverImage
+    }}
     onclick={createPlaylist}
     oncontextmenu={handleContextMenu}
 >
-    <h3 class="type-scale-5 text-primary-800-200">
-        {track.title}
-    </h3>
-    <p class="opacity-50">{track.album}</p>
+    {#if coverImage}
+        <img
+            src={coverImage}
+            alt="Album cover"
+            class="opacity-30 absolute left-0 top-0 h-full w-full brightness-50"
+        />
+    {/if}
+    <div class="relative">
+        <h3 class="type-scale-5 text-primary-800-200 line-clamp-3">
+            {track.title}
+        </h3>
+        <p class="opacity-60">{track.album}</p>
+    </div>
 </button>
 
 {#if showContextMenu}

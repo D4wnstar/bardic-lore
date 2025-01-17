@@ -2,6 +2,7 @@
 // uses to keep things synchronized between the front- and backend and also for
 // persistent storage.
 
+import { SvelteMap } from 'svelte/reactivity'
 import { LoopState, Parallel, Player, Playlist } from './state.svelte'
 import type { CachedTrack, Track } from './types'
 
@@ -74,3 +75,9 @@ export const appState: AppState = $state({
  * Will be set to false on the next TRACK_ENDED.
  */
 export const skipRemoveOnEnd = $state({ skip: false })
+
+/**
+ * Stores cover image base64 values so that they can be shared between images.
+ * Prevents reading the image files every time there is a track with a cover.
+ */
+export const cachedCoverImages: SvelteMap<string, string> = new SvelteMap()

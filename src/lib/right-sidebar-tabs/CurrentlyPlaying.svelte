@@ -10,7 +10,7 @@
     {#if appState.playlist.current()}
         <div transition:fade={{ duration: 100 }}>
             <TrackControls
-                state={{
+                parallelState={{
                     track: appState.playlist.current() as Track,
                     player: appState.player
                 }}
@@ -22,7 +22,7 @@
     {/if}
     {#each appState.parallel.states as state}
         <div transition:fade={{ duration: 100 }}>
-            <TrackControls {state} parallel />
+            <TrackControls parallelState={state} parallel />
         </div>
     {/each}
 </div>

@@ -31,9 +31,9 @@
         {#each guild.voice_channels.toSorted( (a, b) => a.name.localeCompare(b.name) ) as channel}
             <button
                 class={[
-                    'p-1 w-full items-center text-left flex gap-2 !bg-opacity-50 rounded-md',
+                    'p-1 w-full items-center text-left flex gap-3 !bg-opacity-50 rounded-md',
                     !channel.active && 'hover:bg-primary-100-900',
-                    channel.active && 'bg-primary-200-800 px-2'
+                    channel.active && 'bg-primary-200-800 pl-2'
                 ]}
                 onclick={() => {
                     onClick(guild, channel)

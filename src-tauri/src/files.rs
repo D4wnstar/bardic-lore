@@ -2,11 +2,13 @@ use std::{
     collections::HashSet,
     fs::{File, FileType},
     hash::Hash,
+    io::Write,
     path::PathBuf,
 };
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use symphonia::core::{
     formats::FormatOptions,
     io::MediaSourceStream,
@@ -14,7 +16,7 @@ use symphonia::core::{
     probe::Hint,
     units::Time,
 };
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
 use walkdir::WalkDir;
@@ -33,7 +35,7 @@ pub struct Track {
     pub duration: Option<u64>,
     pub path: PathBuf,
     pub cover_filetype: Option<String>,
-    pub cover_data: Option<Vec<u8>>,
+    pub cover_path: Option<PathBuf>,
 }
 
 impl PartialEq for Track {
@@ -182,6 +184,7 @@ pub async fn update_tracks_from_sources(
                     Some(entry.file_type()),
                     entry.file_name().to_string_lossy().to_string(),
                     entry.path().to_path_buf(),
+                    &app,
                 ) {
                     if source.active {
                         tracks_to_add.insert(track);
@@ -196,6 +199,7 @@ pub async fn update_tracks_from_sources(
                     entry.file_type().ok(),
                     entry.file_name().to_string_lossy().to_string(),
                     entry.path(),
+                    &app,
                 ) {
                     if source.active {
                         tracks_to_add.insert(track);
@@ -220,7 +224,12 @@ pub async fn update_tracks_from_sources(
 }
 
 /// Attempt to transform the file at `path` into a `Track`.
-fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Option<Track> {
+fn make_track(
+    filetype: Option<FileType>,
+    filename: String,
+    path: PathBuf,
+    app: &AppHandle,
+) -> Option<Track> {
     if let None = filetype {
         return None;
     }
@@ -231,12 +240,12 @@ fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Op
     let file_ext = path.extension().map(|s| s.to_str()).flatten().unwrap_or("");
     let file_ext_with_dot = format!(".{file_ext}");
 
-    let metadata = get_audio_metadata(&path, &file_ext).unwrap_or(TrackMetadata {
+    let metadata = get_audio_metadata(&path, &file_ext, app).unwrap_or(TrackMetadata {
         track_name: Some(filename.to_string().replace(&file_ext_with_dot, "")),
         album: None,
         artist: None,
         duration: None,
-        front_cover_data: None,
+        cover_path: None,
         media_type: None,
     });
 
@@ -248,7 +257,7 @@ fn make_track(filetype: Option<FileType>, filename: String, path: PathBuf) -> Op
         artist: metadata.artist,
         duration: metadata.duration.map(|t| t.seconds),
         path: path.clone(),
-        cover_data: metadata.front_cover_data,
+        cover_path: metadata.cover_path,
         cover_filetype: metadata.media_type,
     });
 }
@@ -258,12 +267,16 @@ struct TrackMetadata {
     album: Option<String>,
     artist: Option<String>,
     media_type: Option<String>,
-    front_cover_data: Option<Vec<u8>>,
+    cover_path: Option<PathBuf>,
     duration: Option<Time>,
 }
 
 /// Get some audio metadata from the file at `path`.
-fn get_audio_metadata(path: &PathBuf, file_ext: &str) -> Result<TrackMetadata, Error> {
+fn get_audio_metadata(
+    path: &PathBuf,
+    file_ext: &str,
+    app: &AppHandle,
+) -> Result<TrackMetadata, Error> {
     let source = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(source), Default::default());
     let mut hint = Hint::new();
@@ -278,9 +291,9 @@ fn get_audio_metadata(path: &PathBuf, file_ext: &str) -> Result<TrackMetadata, E
     let mut album = None;
     let mut artist = None;
     let mut media_type = None;
-    let mut front_cover_data = None;
+    let mut cover_path = None;
 
-    let mut get_tags = |metadata: &MetadataRevision| {
+    let mut get_tags = |metadata: &MetadataRevision| -> Result<(), Error> {
         for tag in metadata.tags() {
             if let Some(key) = tag.std_key {
                 match key {
@@ -297,19 +310,21 @@ fn get_audio_metadata(path: &PathBuf, file_ext: &str) -> Result<TrackMetadata, E
             if let Some(usage) = visual.usage {
                 match usage {
                     StandardVisualKey::FrontCover => {
+                        cover_path = Some(save_frontcover(&visual, app)?);
                         media_type = Some(visual.media_type.clone());
-                        front_cover_data = Some(visual.data.clone().into_vec());
                     }
                     _ => (),
                 }
             }
         }
+
+        return Ok(());
     };
 
     if let Some(metadata_rev) = probed.format.metadata().current() {
-        get_tags(metadata_rev);
+        get_tags(metadata_rev)?;
     } else if let Some(metadata_rev) = probed.metadata.get().as_ref().and_then(|m| m.current()) {
-        get_tags(metadata_rev);
+        get_tags(metadata_rev)?;
     }
 
     // This assumes there is only one track per file. Some tracks have empty tracks with
@@ -335,9 +350,31 @@ fn get_audio_metadata(path: &PathBuf, file_ext: &str) -> Result<TrackMetadata, E
         album,
         artist,
         media_type,
-        front_cover_data,
+        cover_path,
         duration,
     });
+}
+
+fn save_frontcover(visual: &Visual, app: &AppHandle) -> Result<PathBuf, Error> {
+    let mut hasher = Sha256::new();
+    hasher.update(&visual.data);
+    let hash = hasher.finalize();
+    let hash_str = hex::encode(hash);
+
+    let cache_path = app.path().app_cache_dir()?;
+    let extension = visual.media_type.split("/").last().unwrap_or("jpg");
+    let inner_path = format!("covers/{}.{}", hash_str, extension);
+    let image_path = cache_path.join(inner_path.clone());
+
+    if !image_path.exists() {
+        if let Some(parent) = image_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut file = File::create(&image_path)?;
+        file.write_all(&visual.data)?;
+    }
+
+    return Ok(PathBuf::from(inner_path));
 }
 
 /* CONVENIENCE FUNCTIONS */

@@ -16,7 +16,7 @@ export type CachedTrack = {
     artist?: string
     duration?: number
     path: string
-    cover_data?: Uint8Array
+    cover_path?: string
     cover_filetype?: string
 }
 
@@ -32,7 +32,7 @@ export type Track = {
     artist?: string
     duration?: number
     path: string
-    cover_data?: Uint8Array
+    cover_path?: string
     cover_filetype?: string
 }
 
