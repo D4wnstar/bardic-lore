@@ -7,6 +7,7 @@
     import type { Player } from '$lib/state.svelte'
     import {
         appState,
+        MUTE_SETTING,
         SETTINGS_FILENAME,
         VOLUME_SETTING
     } from '$lib/stores.svelte'
@@ -60,6 +61,12 @@
             parallel: uuid ? true : false,
             uuid
         } satisfies TrackActionPayload)
+
+        if (!uuid) {
+            // Persist the main player's mute state
+            const store = await load(SETTINGS_FILENAME)
+            await store.set(MUTE_SETTING, appState.player.mute)
+        }
     }
 
     let value = $state([player.volume * 100])
@@ -79,8 +86,6 @@
 
     onMount(async () => {
         if (!uuid) {
-            // The main player volume should be the only one with no UUID but we save
-            // volume from appStore.mainPlayer directly just to be safe
             const store = await load(SETTINGS_FILENAME)
             appState.player.volume =
                 (await store.get(VOLUME_SETTING)) ?? appState.player.volume

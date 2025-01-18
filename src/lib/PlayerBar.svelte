@@ -8,7 +8,12 @@
         SkipBack,
         SkipForward
     } from 'lucide-svelte'
-    import { appState } from './stores.svelte'
+    import {
+        appState,
+        LOOP_SETTING,
+        SETTINGS_FILENAME,
+        SHUFFLE_SETTING
+    } from './stores.svelte'
     import { emit } from '@tauri-apps/api/event'
     import {
         QUEUE_TRACK,
@@ -23,6 +28,7 @@
     import TrackProgressBar from './utils/TrackProgressBar.svelte'
     import { rgbToHex } from './utils/utils'
     import { LoopState, SortMethod, SortOrder } from './state.svelte'
+    import { load } from '@tauri-apps/plugin-store'
 
     async function handleBackSkip() {
         if (appState.playlist.isEmpty()) {
@@ -77,6 +83,9 @@
             default:
                 break
         }
+
+        const store = await load(SETTINGS_FILENAME)
+        await store.set(LOOP_SETTING, appState.player.loopState)
     }
 
     async function handleShuffleClick() {
@@ -100,6 +109,9 @@
                 sortUuids
             } satisfies TrackActionPayload)
         }
+
+        const store = await load(SETTINGS_FILENAME)
+        await store.set(SHUFFLE_SETTING, appState.player.shuffle)
     }
 
     const activeColor = rgbToHex(

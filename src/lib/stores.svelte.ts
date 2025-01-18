@@ -21,6 +21,9 @@ export const SETTINGS_FILENAME = 'settings.json'
 export const AUDIO_SOURCES_SETTING = 'audio-sources'
 export const BOT_TOKEN_SETTING = 'bot-token'
 export const VOLUME_SETTING = 'volume'
+export const MUTE_SETTING = 'mute'
+export const SHUFFLE_SETTING = 'shuffle'
+export const LOOP_SETTING = 'loop'
 
 /* TRACKS */
 /**

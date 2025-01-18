@@ -6,6 +6,10 @@
     import type { CachedTrack, MaskedTrack, Track } from '$lib/types'
     import {
         appState,
+        LOOP_SETTING,
+        MUTE_SETTING,
+        SETTINGS_FILENAME,
+        SHUFFLE_SETTING,
         skipRemoveOnEnd,
         TRACKS_FILENAME,
         TRACKS_SETTING
@@ -39,8 +43,7 @@
     import { LoopState, Player } from '$lib/state.svelte'
     import { Folder, Wind } from 'lucide-svelte'
     import { rgbToHex } from '$lib/utils/utils'
-    import { fade, fly, slide } from 'svelte/transition'
-    import { flip } from 'svelte/animate'
+    import { fade } from 'svelte/transition'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
@@ -125,6 +128,17 @@
     let unlisten: UnlistenFn[] = []
     onMount(async () => {
         const toast: ToastContext = getContext('toast')
+        await getCachedTracks()
+
+        // Initialize some cached settings
+        const settingsStore = await load(SETTINGS_FILENAME)
+        appState.player.loopState =
+            (await settingsStore.get(LOOP_SETTING)) ?? appState.player.loopState
+        appState.player.shuffle =
+            (await settingsStore.get(SHUFFLE_SETTING)) ??
+            appState.player.shuffle
+        appState.player.mute =
+            (await settingsStore.get(MUTE_SETTING)) ?? appState.player.mute
 
         // Setup all the global event listeners
         let unlisten1 = await listen<string>(BOT_ERROR, (ev) => {
@@ -330,8 +344,6 @@
             }
         )
         unlisten.push(unlisten12)
-
-        await getCachedTracks()
     })
 
     // Uncomment to debug playlist
