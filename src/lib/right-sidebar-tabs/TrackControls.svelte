@@ -86,10 +86,7 @@
 
     let coverImage: string | undefined = $state()
     onMount(async () => {
-        coverImage = await getCover(
-            parallelState.track.cover_path,
-            parallelState.track.cover_filetype
-        )
+        coverImage = await getCover('thumbnail', parallelState.track.cover_hash)
     })
 </script>
 

@@ -1,4 +1,4 @@
-import { cachedCoverImages } from '$lib/stores.svelte'
+import { cachedCoverImages, cachedCoverThumbnails } from '$lib/stores.svelte'
 import type { CachedTrack } from '$lib/types'
 import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
 
@@ -33,28 +33,34 @@ export function permuteTracks(startTrack: CachedTrack, tracks: CachedTrack[]) {
 /**
  * Gets the cover image for a given path. If it's already loaded, this will
  * just return the correct value from the store. Otherwise, it will read the file.
- * @param path The path of the cached cover file
- * @param filetype The MIME type of the cover
- * @returns The cover in `data:...;base64,...` format
+ * @param kind Whether to retrieve a cover or a thumbnail
+ * @param hash The hash of the image, as found in the Track object
+ * @returns The URL of the image
  */
-export async function getCover(path?: string, filetype?: string) {
-    if (!path || !filetype) return
+export async function getCover(kind: 'cover' | 'thumbnail', hash?: string) {
+    if (!hash) return
 
-    const maybeCover = cachedCoverImages.get(path)
+    // Check if the blob was already computed before
+    const maybeCover =
+        kind === 'cover'
+            ? cachedCoverImages.get(hash)
+            : cachedCoverThumbnails.get(hash)
     if (maybeCover) {
         return maybeCover
     }
 
+    const path = kind === 'cover' ? `covers/${hash}` : `thumbnails/${hash}`
     const bytes = await readFile(path, {
         baseDir: BaseDirectory.AppCache
     })
-    let binaryStr = bytes.reduce(
-        (str, byte) => str + String.fromCodePoint(byte),
-        ''
-    )
-    const base64 = window.btoa(binaryStr)
-    const cover = `data:${filetype};base64,${base64}`
-    cachedCoverImages.set(path, cover)
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }))
 
-    return cover
+    // After creating the blob for the first time, store it globally to be shared
+    if (kind === 'cover') {
+        cachedCoverImages.set(path, url)
+    } else {
+        cachedCoverThumbnails.set(path, url)
+    }
+
+    return url
 }

@@ -36,6 +36,8 @@ pub enum Error {
     BadPayload(String),
     #[error(transparent)]
     Symphonia(#[from] symphonia::core::errors::Error),
+    #[error(transparent)]
+    Image(#[from] image::ImageError),
 }
 
 impl serde::Serialize for Error {

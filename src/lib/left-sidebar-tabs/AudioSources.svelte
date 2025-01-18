@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { invoke } from '@tauri-apps/api/core'
-    import { type AudioSource } from '$lib/types'
+    import { Channel, invoke } from '@tauri-apps/api/core'
+    import { type AudioSource, type CachedTrack } from '$lib/types'
     import SourceBox from './SourceBox.svelte'
     import { type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { getContext, onMount } from 'svelte'
@@ -11,9 +11,11 @@
     } from '$lib/stores.svelte'
 
     interface Props {
-        getTracks: Function
+        addTrack: (track: CachedTrack) => void
+        removeTrack: (track: CachedTrack) => void
+        getCachedTracks: () => Promise<void>
     }
-    let { getTracks }: Props = $props()
+    let { addTrack, removeTrack, getCachedTracks }: Props = $props()
 
     let sources: AudioSource[] = $state([])
     const toast: ToastContext = getContext('toast')
@@ -41,14 +43,41 @@
         }
     }
 
+    type TrackPacket =
+        | {
+              event: 'add'
+              track: CachedTrack
+          }
+        | {
+              event: 'remove'
+              track: CachedTrack
+          }
+        | { event: 'refresh' }
+
     async function refreshTracks(sources?: AudioSource[], reset?: boolean) {
         toast.create({
             title: '',
-            description: 'Refreshing files. This may take a few seconds.',
+            description:
+                'Refreshing files. This may take a while, especially for the first time if the tracks have cover images.',
             type: 'info'
         })
 
-        await invoke('update_tracks_from_sources', { sources, reset })
+        const onGetTrack = new Channel<TrackPacket>()
+        onGetTrack.onmessage = (packet) => {
+            if (packet.event === 'add') {
+                addTrack(packet.track)
+            } else if (packet.event === 'remove') {
+                removeTrack(packet.track)
+            } else if (packet.event === 'refresh') {
+                getCachedTracks()
+            }
+        }
+
+        await invoke('update_tracks_from_sources', {
+            sources,
+            reset,
+            onGetTrack
+        })
             .then(() => {
                 toast.create({
                     title: '',
@@ -66,8 +95,6 @@
                     type: 'error'
                 })
             })
-
-        await getTracks()
     }
 
     onMount(getAudioSources)

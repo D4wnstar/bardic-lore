@@ -77,7 +77,15 @@ export const appState: AppState = $state({
 export const skipRemoveOnEnd = $state({ skip: false })
 
 /**
- * Stores cover image base64 values so that they can be shared between images.
+ * Stores cover image blob URLs so that they can be shared between images.
  * Prevents reading the image files every time there is a track with a cover.
+ * The covers are 200x200 pixels. They are encoded as WebP.
  */
 export const cachedCoverImages: SvelteMap<string, string> = new SvelteMap()
+/**
+ * Stores cover image blob URLs so that they can be shared between images.
+ * Prevents reading the image files every time there is a track with a cover.
+ * The thumbnails are 64x64 pixels and should be used for icon-like use cases.
+ * They are encoded as WebP.
+ */
+export const cachedCoverThumbnails: SvelteMap<string, string> = new SvelteMap()

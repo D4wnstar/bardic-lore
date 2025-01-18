@@ -3,7 +3,7 @@
     import RightSidebar from '$lib/RightSidebar.svelte'
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
-    import type { CachedTrack, Track } from '$lib/types'
+    import type { CachedTrack, MaskedTrack, Track } from '$lib/types'
     import {
         appState,
         skipRemoveOnEnd,
@@ -39,19 +39,21 @@
     import { LoopState, Player } from '$lib/state.svelte'
     import { Folder, Wind } from 'lucide-svelte'
     import { rgbToHex } from '$lib/utils/utils'
+    import { fade, fly, slide } from 'svelte/transition'
+    import { flip } from 'svelte/animate'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
     )
 
-    let tracks: { track: CachedTrack; mask: boolean }[] = $state([])
+    let tracks: MaskedTrack[] = $state([])
     $effect(() => {
         appState.availableTracks = tracks
             .filter((t) => t.mask)
             .map((t) => t.track)
     })
 
-    async function getTracks() {
+    async function getCachedTracks() {
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         const cachedTracks =
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
@@ -60,6 +62,23 @@
                 return { track, mask: true }
             })
             .toSorted((a, b) => a.track.title.localeCompare(b.track.title))
+    }
+
+    function addTrack(track: CachedTrack) {
+        const exists = tracks.find((mt) => mt.track.path === track.path)
+        if (!exists) {
+            const sortedIndex = tracks.findIndex(
+                (mt) => mt.track.title.localeCompare(track.title) === 1
+            )
+            tracks.splice(sortedIndex, 0, { track, mask: true })
+        }
+    }
+
+    function removeTrack(track: CachedTrack) {
+        const idxToDelete = tracks.findIndex(
+            (mt) => mt.track.path === track.path
+        )
+        if (idxToDelete >= 0) tracks.splice(idxToDelete, 1)
     }
 
     function filterTracks(searchTerm: string) {
@@ -312,7 +331,7 @@
         )
         unlisten.push(unlisten12)
 
-        await getTracks()
+        await getCachedTracks()
     })
 
     // Uncomment to debug playlist
@@ -337,15 +356,20 @@
 </script>
 
 <div class="flex h-screen">
-    <LeftSidebar {getTracks} />
+    <LeftSidebar {addTrack} {removeTrack} {getCachedTracks} />
     <main class="flex flex-col p-4 min-h-0 grow">
         <div class="flex grow min-h-0">
             <div class="flex grow flex-col">
                 <SearchBar {filterTracks} />
                 {#if tracks.length > 0}
                     <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
-                        {#each tracks.filter((t) => t.mask) as { track }}
-                            <SongBox {track} />
+                        {#each appState.availableTracks as track (track.path)}
+                            <div
+                                class="flex-[10rem] xl:flex-[12rem] max-w-[14rem]"
+                                transition:fade={{ duration: 200 }}
+                            >
+                                <SongBox {track} />
+                            </div>
                         {/each}
                     </div>
                 {:else}

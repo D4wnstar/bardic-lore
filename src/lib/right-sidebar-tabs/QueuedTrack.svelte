@@ -12,7 +12,7 @@
 
     let coverImage: string | undefined = $state()
     onMount(async () => {
-        coverImage = await getCover(track.cover_path, track.cover_filetype)
+        coverImage = await getCover('thumbnail', track.cover_hash)
     })
 </script>
 
@@ -20,11 +20,17 @@
     class="w-full h-16 preset-filled-surface-100-900 !bg-opacity-50 flex rounded-md"
 >
     <div class="min-h-full min-w-16 flex items-center justify-center">
-        {#if coverImage}
-            <img src={coverImage} alt="Album cover" class="w-12 rounded-md" />
-        {:else}
-            <Music size="32" strokeWidth="1.75" />
-        {/if}
+        {#key coverImage}
+            {#if coverImage}
+                <img
+                    src={coverImage}
+                    alt="Album cover"
+                    class="w-12 rounded-md"
+                />
+            {:else}
+                <Music size="32" strokeWidth="1.75" />
+            {/if}
+        {/key}
     </div>
     <div class="flex flex-col py-2 pl-1 pr-4">
         <p class="line-clamp-1">{track.title}</p>

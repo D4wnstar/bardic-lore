@@ -7,11 +7,14 @@
     import { fade, slide } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
     import { onMount } from 'svelte'
+    import type { CachedTrack } from './types'
 
     interface Props {
-        getTracks: Function
+        addTrack: (track: CachedTrack) => void
+        removeTrack: (track: CachedTrack) => void
+        getCachedTracks: () => Promise<void>
     }
-    let { getTracks }: Props = $props()
+    let { addTrack, removeTrack, getCachedTracks }: Props = $props()
 
     let visible: boolean = $state(true)
     let tabIndex: number = $state(3)
@@ -96,7 +99,7 @@
             {#if tabIndex === 1}
                 <Tags />
             {:else if tabIndex === 2}
-                <AudioSources {getTracks} />
+                <AudioSources {addTrack} {removeTrack} {getCachedTracks} />
             {:else if tabIndex === 3}
                 <BotControls />
             {:else if tabIndex === 4}

@@ -2,10 +2,11 @@ use std::{
     collections::HashSet,
     fs::{File, FileType},
     hash::Hash,
-    io::Write,
+    io::Cursor,
     path::PathBuf,
 };
 
+use image::{imageops::FilterType, ImageFormat, ImageReader, Pixel};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -16,9 +17,10 @@ use symphonia::core::{
     probe::Hint,
     units::Time,
 };
-use tauri::{AppHandle, Manager};
+use tauri::{ipc::Channel, AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
+use tracing::warn;
 use walkdir::WalkDir;
 
 use crate::{
@@ -34,8 +36,7 @@ pub struct Track {
     pub artist: Option<String>,
     pub duration: Option<u64>,
     pub path: PathBuf,
-    pub cover_filetype: Option<String>,
-    pub cover_path: Option<PathBuf>,
+    pub cover_hash: Option<String>,
 }
 
 impl PartialEq for Track {
@@ -164,14 +165,23 @@ pub async fn update_audio_source(app: AppHandle, source: AudioSource) -> Result<
     return Ok(updated.is_some());
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(tag = "event", content = "track", rename_all = "camelCase")]
+pub enum TrackPacket {
+    Add(Track),
+    Remove(Track),
+    Refresh(),
+}
+
 /// Update the track cache with the given sources. Active sources add track,
 /// inactive sources remove them.
 #[tauri::command]
 pub async fn update_tracks_from_sources(
     app: AppHandle,
+    on_get_track: Channel<TrackPacket>,
     sources: Option<HashSet<AudioSource>>,
     reset: Option<bool>,
-) -> Result<(HashSet<Track>, HashSet<Track>), Error> {
+) -> Result<(), Error> {
     // Tracks from active sources get added, inactive ones get removed
     let mut tracks_to_add: HashSet<Track> = HashSet::new();
     let mut tracks_to_remove: HashSet<Track> = HashSet::new();
@@ -187,9 +197,11 @@ pub async fn update_tracks_from_sources(
                     &app,
                 ) {
                     if source.active {
-                        tracks_to_add.insert(track);
+                        tracks_to_add.insert(track.clone());
+                        drop(on_get_track.send(TrackPacket::Add(track)));
                     } else {
-                        tracks_to_remove.insert(track);
+                        tracks_to_remove.insert(track.clone());
+                        drop(on_get_track.send(TrackPacket::Remove(track)));
                     }
                 }
             }
@@ -202,9 +214,11 @@ pub async fn update_tracks_from_sources(
                     &app,
                 ) {
                     if source.active {
-                        tracks_to_add.insert(track);
+                        tracks_to_add.insert(track.clone());
+                        drop(on_get_track.send(TrackPacket::Add(track)));
                     } else {
-                        tracks_to_remove.insert(track);
+                        tracks_to_remove.insert(track.clone());
+                        drop(on_get_track.send(TrackPacket::Remove(track)));
                     }
                 }
             }
@@ -215,12 +229,13 @@ pub async fn update_tracks_from_sources(
         let store = app.store(TRACKS_FILENAME)?;
         store.set(TRACKS_SETTING, serde_json::to_value(tracks_to_add.clone())?);
         store.save()?;
+        drop(on_get_track.send(TrackPacket::Refresh()));
     } else {
         add_tracks_to_store(&app, tracks_to_add.clone())?;
         remove_tracks_from_store(&app, tracks_to_remove.clone())?;
     }
 
-    return Ok((tracks_to_add.clone(), tracks_to_remove.clone()));
+    return Ok(());
 }
 
 /// Attempt to transform the file at `path` into a `Track`.
@@ -240,14 +255,15 @@ fn make_track(
     let file_ext = path.extension().map(|s| s.to_str()).flatten().unwrap_or("");
     let file_ext_with_dot = format!(".{file_ext}");
 
-    let metadata = get_audio_metadata(&path, &file_ext, app).unwrap_or(TrackMetadata {
-        track_name: Some(filename.to_string().replace(&file_ext_with_dot, "")),
-        album: None,
-        artist: None,
-        duration: None,
-        cover_path: None,
-        media_type: None,
-    });
+    let metadata = get_audio_metadata(&path, &file_ext, app)
+        .inspect_err(|err| warn!("Failed to get audio metadata for {path:?}. Error: {err}"))
+        .unwrap_or(TrackMetadata {
+            track_name: Some(filename.to_string().replace(&file_ext_with_dot, "")),
+            album: None,
+            artist: None,
+            duration: None,
+            cover_hash: None,
+        });
 
     return Some(Track {
         title: metadata
@@ -257,8 +273,7 @@ fn make_track(
         artist: metadata.artist,
         duration: metadata.duration.map(|t| t.seconds),
         path: path.clone(),
-        cover_path: metadata.cover_path,
-        cover_filetype: metadata.media_type,
+        cover_hash: metadata.cover_hash,
     });
 }
 
@@ -266,9 +281,8 @@ struct TrackMetadata {
     track_name: Option<String>,
     album: Option<String>,
     artist: Option<String>,
-    media_type: Option<String>,
-    cover_path: Option<PathBuf>,
     duration: Option<Time>,
+    cover_hash: Option<String>,
 }
 
 /// Get some audio metadata from the file at `path`.
@@ -290,8 +304,7 @@ fn get_audio_metadata(
     let mut track_name = None;
     let mut album = None;
     let mut artist = None;
-    let mut media_type = None;
-    let mut cover_path = None;
+    let mut cover_hash = None;
 
     let mut get_tags = |metadata: &MetadataRevision| -> Result<(), Error> {
         for tag in metadata.tags() {
@@ -310,11 +323,25 @@ fn get_audio_metadata(
             if let Some(usage) = visual.usage {
                 match usage {
                     StandardVisualKey::FrontCover => {
-                        cover_path = Some(save_frontcover(&visual, app)?);
-                        media_type = Some(visual.media_type.clone());
+                        cover_hash = save_frontcover(visual.clone(), app, &path)
+                            .inspect_err(|e| {
+                                warn!("Failed to save cover image for {path:?}. Error: {e}",)
+                            })
+                            .ok()
                     }
+
                     _ => (),
                 }
+            }
+        }
+
+        // If no front cover standard key was found and there are
+        // visuals, use the first visual as the fallback cover
+        if let None = cover_hash {
+            if let Some(visual) = metadata.visuals().first() {
+                cover_hash = save_frontcover(visual.clone(), app, &path)
+                    .inspect_err(|e| warn!("Failed to save cover image for {path:?}. Error: {e}",))
+                    .ok()
             }
         }
 
@@ -349,32 +376,78 @@ fn get_audio_metadata(
         track_name,
         album,
         artist,
-        media_type,
-        cover_path,
+        cover_hash,
         duration,
     });
 }
 
-fn save_frontcover(visual: &Visual, app: &AppHandle) -> Result<PathBuf, Error> {
+/// Save the image in a visual object to the app's cache after downscaling and
+/// converting it. Returns the hash used as the identifier.
+fn save_frontcover(visual: Visual, app: &AppHandle, path: &PathBuf) -> Result<String, Error> {
+    // Hash the content of the image to make a unique filename
     let mut hasher = Sha256::new();
     hasher.update(&visual.data);
     let hash = hasher.finalize();
     let hash_str = hex::encode(hash);
 
     let cache_path = app.path().app_cache_dir()?;
-    let extension = visual.media_type.split("/").last().unwrap_or("jpg");
-    let inner_path = format!("covers/{}.{}", hash_str, extension);
-    let image_path = cache_path.join(inner_path.clone());
+    let extension = media_type_to_mime_type_and_ext(&visual.media_type).1;
+    let cover_file = format!("{hash_str}.{extension}");
 
-    if !image_path.exists() {
-        if let Some(parent) = image_path.parent() {
+    // Make filepaths for both the cover and the thumbnail
+    let relative_cover_path = format!("covers/{cover_file}");
+    let absolute_cover_path = cache_path.join(relative_cover_path.clone());
+
+    let relative_thumb_path = format!("thumbnails/{cover_file}");
+    let absolute_thumb_path = cache_path.join(relative_thumb_path.clone());
+
+    // Only do image processing if there is no cached copy already
+    if !absolute_cover_path.exists() || !absolute_thumb_path.exists() {
+        // Create the folders if they aren't already there
+        if let Some(parent) = absolute_cover_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let mut file = File::create(&image_path)?;
-        file.write_all(&visual.data)?;
+        if let Some(parent) = absolute_thumb_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        // Read the images by guessing their format (more reliable than using
+        // the saved MIME type)
+        let maybe_formatted =
+            ImageReader::new(Cursor::new(visual.data.clone())).with_guessed_format();
+
+        let formatted = match maybe_formatted {
+            Ok(fmt) => fmt,
+            Err(e) => {
+                warn!("Could not guess format for {path:?}. Error: {e}");
+                // If format guessing fails, try to use the media type tag
+                let mime_type = media_type_to_mime_type_and_ext(&visual.media_type).0;
+                let format = ImageFormat::from_mime_type(mime_type)
+                    .expect("All supported MIME types have a format");
+                let mut reader = ImageReader::new(Cursor::new(visual.data));
+                reader.set_format(format);
+                reader
+            }
+        };
+
+        let img = formatted.decode()?;
+
+        // Cover in downscaled to a resonable size and filtered here so that we don't
+        // need to do it every time with CSS
+        let mut cover = img.resize(200, 200, FilterType::CatmullRom).into_rgba8();
+        cover
+            .pixels_mut()
+            .for_each(|p| p.apply_with_alpha(|rgb| rgb / 2, |alpha| alpha / 3));
+
+        // Thumbnail is resized to a very small scale
+        let thumbnail = img.thumbnail(64, 64);
+
+        // Save as WebP
+        cover.save_with_format(absolute_cover_path, ImageFormat::WebP)?;
+        thumbnail.save_with_format(absolute_thumb_path, ImageFormat::WebP)?;
     }
 
-    return Ok(PathBuf::from(inner_path));
+    return Ok(cover_file);
 }
 
 /* CONVENIENCE FUNCTIONS */
@@ -431,3 +504,38 @@ fn remove_tracks_from_store(app: &AppHandle, tracks: HashSet<Track>) -> Result<(
 
     Ok(())
 }
+
+/// Convert the media type of a visual into a pair of MIME type and correlated file extension.
+fn media_type_to_mime_type_and_ext(media_type: &str) -> (String, String) {
+    let media_type = media_type.to_lowercase();
+    if media_type.contains("/") {
+        // In theory, images that contain visuals should specify the MIME
+        // type of the visual
+        let ext = MIME_TYPES
+            .iter()
+            .find(|(mime, _ext)| *mime == media_type)
+            .map(|t| t.1)
+            .unwrap_or("jpg");
+
+        return (media_type, ext.to_string());
+    } else {
+        // However, sometimes that's not correct and only the "media type"
+        // is actually just the file extension
+        let mime_type = MIME_TYPES
+            .iter()
+            .find(|(_mime, ext)| *ext == media_type)
+            .map(|t| t.0)
+            .unwrap_or("image/jpeg");
+
+        return (mime_type.to_string(), media_type);
+    }
+}
+
+const MIME_TYPES: [(&str, &str); 6] = [
+    ("image/jpeg", "jpg"),
+    ("image/png", "png"),
+    ("image/gif", "gif"),
+    ("image/bmp", "bmp"),
+    ("image/webp", "webp"),
+    ("image/tiff", "tiff"),
+];

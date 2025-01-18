@@ -80,14 +80,13 @@
     }
 
     onMount(async () => {
-        coverImage = await getCover(track.cover_path, track.cover_filetype)
+        coverImage = await getCover('cover', track.cover_hash)
     })
 </script>
 
 <button
     class={{
-        'card card-hover aspect-square flex flex-[10rem] xl:flex-[12rem] max-w-[14rem] flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900': true,
-        'relative overflow-hidden': coverImage,
+        'relative card card-hover aspect-square h-full w-full flex flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
         'preset-filled-surface-100-900 !bg-opacity-50': !coverImage
     }}
     onclick={createPlaylist}
@@ -96,11 +95,11 @@
     {#if coverImage}
         <img
             src={coverImage}
-            alt="Album cover"
-            class="opacity-30 absolute left-0 top-0 h-full w-full brightness-50"
+            alt={`${track.album} cover art`}
+            class="absolute left-0 top-0 h-full w-full"
         />
     {/if}
-    <div class="relative">
+    <div class={{ relative: true, 'py-2 px-1': !coverImage }}>
         <h3 class="type-scale-5 text-primary-800-200 line-clamp-3">
             {track.title}
         </h3>
