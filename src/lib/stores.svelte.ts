@@ -18,12 +18,19 @@ import type { CachedTrack, Track } from './types'
  * and the Discord bot token.
  */
 export const SETTINGS_FILENAME = 'settings.json'
+
 export const AUDIO_SOURCES_SETTING = 'audio-sources'
+
 export const BOT_TOKEN_SETTING = 'bot-token'
+export const AUTOCONNECT_SETTING = 'autoconnect'
+
 export const VOLUME_SETTING = 'volume'
 export const MUTE_SETTING = 'mute'
 export const SHUFFLE_SETTING = 'shuffle'
 export const LOOP_SETTING = 'loop'
+
+export const SHOW_COVERS_SETTING = 'show-covers'
+export const AUTOHIDE_SIDEBARS_SETTING = 'autohide-sidebars'
 
 /* TRACKS */
 /**
@@ -56,6 +63,11 @@ export type AppState = {
     parallel: Parallel
 }
 
+/**
+ * The global state of the application, containing info on available tracks,
+ * the main player, the main queue, parallel tracks and their player and
+ * recent tracks.
+ */
 export const appState: AppState = $state({
     guildId: 0,
     offline: true,
@@ -71,6 +83,18 @@ export const appState: AppState = $state({
     playlist: new Playlist([], [], []),
     recentlyPlayed: [],
     parallel: new Parallel([])
+})
+
+export type Settings = {
+    showCovers: boolean
+    autoconnect: boolean
+    autohideSidebars: boolean
+}
+
+export const settings: Settings = $state({
+    showCovers: true,
+    autoconnect: false,
+    autohideSidebars: true
 })
 
 /**

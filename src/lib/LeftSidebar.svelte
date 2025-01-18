@@ -8,6 +8,7 @@
     import { expoIn } from 'svelte/easing'
     import { onMount } from 'svelte'
     import type { CachedTrack } from './types'
+    import { settings } from './stores.svelte'
 
     interface Props {
         addTrack: (track: CachedTrack) => void
@@ -17,7 +18,7 @@
     let { addTrack, removeTrack, getCachedTracks }: Props = $props()
 
     let visible: boolean = $state(true)
-    let tabIndex: number = $state(3)
+    let tabIndex: number = $state(4)
 
     let minWidth = $state(300)
 
@@ -47,7 +48,20 @@
     let previousWidth = window.innerWidth
     onMount(() => {
         window.addEventListener('resize', () => {
-            if (previousWidth > 1024 && window.innerWidth < 1024 && visible) {
+            if (
+                previousWidth > 1024 &&
+                window.innerWidth < 1024 &&
+                visible &&
+                settings.autohideSidebars
+            ) {
+                openCloseSidebar()
+            }
+            if (
+                previousWidth < 1024 &&
+                window.innerWidth > 1024 &&
+                !visible &&
+                settings.autohideSidebars
+            ) {
                 openCloseSidebar()
             }
             previousWidth = window.innerWidth
@@ -89,7 +103,7 @@
             >
         {/if}
     </div>
-    <hr class="hr" />
+    <hr class="hr pb-2" />
 
     {#if visible}
         <div

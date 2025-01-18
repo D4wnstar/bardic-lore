@@ -5,6 +5,7 @@
     import { expoIn } from 'svelte/easing'
     import CurrentlyPlaying from './right-sidebar-tabs/CurrentlyPlaying.svelte'
     import { onMount } from 'svelte'
+    import { settings } from './stores.svelte'
 
     let visible = $state(true)
     let tabIndex = $state(1)
@@ -36,7 +37,20 @@
     let previousWidth = window.innerWidth
     onMount(() => {
         window.addEventListener('resize', () => {
-            if (previousWidth > 768 && window.innerWidth < 768 && visible) {
+            if (
+                previousWidth > 900 &&
+                window.innerWidth < 900 &&
+                visible &&
+                settings.autohideSidebars
+            ) {
+                openCloseSidebar()
+            }
+            if (
+                previousWidth < 900 &&
+                window.innerWidth > 900 &&
+                !visible &&
+                settings.autohideSidebars
+            ) {
                 openCloseSidebar()
             }
             previousWidth = window.innerWidth

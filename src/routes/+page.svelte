@@ -6,10 +6,7 @@
     import type { CachedTrack, MaskedTrack, Track } from '$lib/types'
     import {
         appState,
-        LOOP_SETTING,
-        MUTE_SETTING,
-        SETTINGS_FILENAME,
-        SHUFFLE_SETTING,
+        settings,
         skipRemoveOnEnd,
         TRACKS_FILENAME,
         TRACKS_SETTING
@@ -42,7 +39,7 @@
     import SearchBar from '$lib/SearchBar.svelte'
     import { LoopState, Player } from '$lib/state.svelte'
     import { Folder, Wind } from 'lucide-svelte'
-    import { rgbToHex } from '$lib/utils/utils'
+    import { createDiscordClient, rgbToHex } from '$lib/utils/utils'
     import { fade } from 'svelte/transition'
 
     let iconColor = rgbToHex(
@@ -130,15 +127,9 @@
         const toast: ToastContext = getContext('toast')
         await getCachedTracks()
 
-        // Initialize some cached settings
-        const settingsStore = await load(SETTINGS_FILENAME)
-        appState.player.loopState =
-            (await settingsStore.get(LOOP_SETTING)) ?? appState.player.loopState
-        appState.player.shuffle =
-            (await settingsStore.get(SHUFFLE_SETTING)) ??
-            appState.player.shuffle
-        appState.player.mute =
-            (await settingsStore.get(MUTE_SETTING)) ?? appState.player.mute
+        if (settings.autoconnect) {
+            await createDiscordClient(toast)
+        }
 
         // Setup all the global event listeners
         let unlisten1 = await listen<string>(BOT_ERROR, (ev) => {

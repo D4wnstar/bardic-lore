@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { appState, skipRemoveOnEnd } from './stores.svelte'
+    import { appState, settings, skipRemoveOnEnd } from './stores.svelte'
     import type { CachedTrack } from './types'
-    import { emit } from '@tauri-apps/api/event'
+    import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         PLAY_PARALLEL,
         QUEUE_TRACK,
@@ -15,7 +15,7 @@
     import { Layers, Plus, Replace } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
     import { getCover, permuteTracks } from './utils/utils'
-    import { onMount } from 'svelte'
+    import { onDestroy, onMount } from 'svelte'
 
     interface Props {
         track: CachedTrack
@@ -79,14 +79,28 @@
         }
     }
 
+    let unlisten: UnlistenFn | undefined
     onMount(async () => {
-        coverImage = await getCover('cover', track.cover_hash)
+        const loadCover = async () => {
+            if (settings.showCovers) {
+                coverImage = await getCover('cover', track.cover_hash)
+            } else {
+                coverImage = undefined
+            }
+        }
+
+        await loadCover()
+        unlisten = await listen('reload-cover', loadCover)
+    })
+
+    onDestroy(() => {
+        if (unlisten) unlisten()
     })
 </script>
 
 <button
     class={{
-        'relative card card-hover aspect-square h-full w-full flex flex-col items-center space-y-2 p-2 text-center border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
+        'relative card card-hover aspect-square h-full w-full flex flex-col items-center p-2 text-center border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
         'preset-filled-surface-100-900 !bg-opacity-50': !coverImage
     }}
     onclick={createPlaylist}
@@ -99,7 +113,7 @@
             class="absolute left-0 top-0 h-full w-full"
         />
     {/if}
-    <div class={{ relative: true, 'py-2 px-1': !coverImage }}>
+    <div class="relative">
         <h3 class="type-scale-5 text-primary-800-200 line-clamp-3">
             {track.title}
         </h3>

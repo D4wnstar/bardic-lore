@@ -1,5 +1,7 @@
 import { cachedCoverImages, cachedCoverThumbnails } from '$lib/stores.svelte'
 import type { CachedTrack } from '$lib/types'
+import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
+import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
 
 /**
@@ -63,4 +65,33 @@ export async function getCover(kind: 'cover' | 'thumbnail', hash?: string) {
     }
 
     return url
+}
+
+export async function createDiscordClient(toast: ToastContext) {
+    // Make sure to not attempt to create a second client
+    let botConnected = await invoke<boolean>('is_bot_connected')
+    if (botConnected) return true
+
+    await invoke('create_discord_client')
+        .then(() => {
+            botConnected = true
+
+            toast.create({
+                title: 'Created client',
+                description:
+                    'Successfully created client. Servers should refresh in a moment.',
+                type: 'success',
+                duration: 10000
+            })
+        })
+        .catch((err) => {
+            console.error(err)
+            toast.create({
+                title: 'Error',
+                description: err,
+                type: 'error'
+            })
+        })
+
+    return botConnected
 }

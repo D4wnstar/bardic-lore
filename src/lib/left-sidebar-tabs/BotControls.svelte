@@ -18,6 +18,7 @@
         LEAVE_VOICE_CHANNEL,
         UPDATED_GUILDS
     } from '$lib/events'
+    import { createDiscordClient } from '$lib/utils/utils'
 
     const toast: ToastContext = getContext('toast')
 
@@ -31,28 +32,6 @@
 
     let botToken = $state('')
     let botConnected = $state(false)
-
-    async function createClient() {
-        await invoke('create_discord_client')
-            .then(() => {
-                toast.create({
-                    title: 'Created client',
-                    description:
-                        'Successfully created client. Servers should refresh automatically in a moment',
-                    type: 'success',
-                    duration: 4000
-                })
-                botConnected = true
-            })
-            .catch((err) => {
-                console.error(err)
-                toast.create({
-                    title: 'Error',
-                    description: err,
-                    type: 'error'
-                })
-            })
-    }
 
     async function refreshServers(makeToast = false) {
         const store = await load(DISCORD_FILENAME, { autoSave: false })
@@ -79,20 +58,13 @@
         }
     }
 
-    async function isBotConnected() {
-        await invoke<boolean>('is_bot_connected').then(
-            (bool) => (botConnected = bool)
-        )
-    }
-
-    async function getBotToken() {
-        const store = await load(SETTINGS_FILENAME, { autoSave: false })
-        botToken = (await store.get(BOT_TOKEN_SETTING)) ?? ''
-    }
-
     async function updateBotToken() {
         const store = await load(SETTINGS_FILENAME, { autoSave: true })
         await store.set(BOT_TOKEN_SETTING, botToken)
+    }
+
+    async function handleConnectClick() {
+        botConnected = await createDiscordClient(toast)
     }
 
     async function handleChannelClick(
@@ -138,16 +110,19 @@
 
     let unlisten: UnlistenFn | undefined
     onMount(async () => {
-        isBotConnected()
+        botConnected = await invoke<boolean>('is_bot_connected')
         refreshServers(false)
-        getBotToken()
+
+        const store = await load(SETTINGS_FILENAME, { autoSave: false })
+        botToken = (await store.get(BOT_TOKEN_SETTING)) ?? ''
+
         unlisten = await listen<undefined>(UPDATED_GUILDS, () =>
             refreshServers(false)
         )
     })
 
     onDestroy(() => {
-        if (unlisten) unlisten
+        if (unlisten) unlisten()
     })
 </script>
 
@@ -179,7 +154,7 @@
         {:else}
             <button
                 class="btn preset-outlined-primary-400-600"
-                onclick={createClient}>Connect</button
+                onclick={handleConnectClick}>Connect</button
             >
         {/if}
         <button
