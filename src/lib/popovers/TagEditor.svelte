@@ -2,6 +2,7 @@
     import { TrackSet } from '$lib/state.svelte'
     import { appTags, TAGS_FILENAME, TAGS_SETTING } from '$lib/stores.svelte'
     import type { CachedTrack, Tag } from '$lib/types'
+    import TagChip from '$lib/utils/TagChip.svelte'
     import { Modal } from '@skeletonlabs/skeleton-svelte'
     import { load } from '@tauri-apps/plugin-store'
     import { Tag as TagIcon } from 'lucide-svelte'
@@ -67,6 +68,25 @@
         }
         draggingTag = null
     }
+
+    async function handleTextInput(
+        e: KeyboardEvent & {
+            currentTarget: EventTarget & HTMLInputElement
+        }
+    ) {
+        if (e.code === 'Enter') {
+            const newTag: Tag = {
+                value: e.currentTarget.value,
+                owners: new TrackSet([track])
+            }
+            appTags.add(newTag)
+            trackTags.add(newTag)
+            e.currentTarget.value = ''
+
+            const store = await load(TAGS_FILENAME)
+            await store.set(TAGS_SETTING, appTags)
+        }
+    }
 </script>
 
 <Modal
@@ -77,10 +97,10 @@
     {#snippet content()}
         <div class="flex gap-3">
             <TagIcon class="self-center" />
-            <header class="type-scale-5">Tag editor</header>
+            <header class="type-scale-6"><b>Tag editor</b></header>
         </div>
         <hr class="hr" />
-        <p>Track tags</p>
+        <p>On this track</p>
         <div
             class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
             ondragover={handleDragOver}
@@ -90,19 +110,24 @@
             tabindex="0"
         >
             {#each trackTags as tag}
-                <div
-                    class="chip preset-filled cursor-grab"
-                    draggable="true"
+                <TagChip
+                    draggable={true}
                     ondragstart={(e) => handleDragStart(e, tag.value)}
-                    role="listitem"
-                >
-                    {tag.value}
-                </div>
+                    {tag}
+                />
             {:else}
                 <span class="opacity-40">Drag-and-drop your tags here...</span>
             {/each}
         </div>
-        <p>Existing tags</p>
+        <p>Add new tags</p>
+        <input
+            class="input rounded-md"
+            type="text"
+            name="add-tags"
+            placeholder="Write new tags here..."
+            onkeypress={handleTextInput}
+        />
+        <p>Available</p>
         <div
             class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
             ondragover={handleDragOver}
@@ -112,14 +137,12 @@
             tabindex="0"
         >
             {#each availableTags as tag}
-                <div
-                    class="chip preset-filled cursor-grab"
-                    draggable="true"
+                <TagChip
+                    draggable={true}
                     ondragstart={(e) => handleDragStart(e, tag.value)}
-                    role="listitem"
-                >
-                    {tag.value}
-                </div>
+                    showRemove
+                    {tag}
+                />
             {/each}
         </div>
     {/snippet}

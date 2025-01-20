@@ -418,6 +418,9 @@ export class TagSet {
         if (!this.has(tag)) {
             // If the tag doesn't exist it, add it whole
             this.#tags.push(tag)
+        } else {
+            // If it does exist, this behaves like addOwners
+            this.addOwners(tag)
         }
     }
 

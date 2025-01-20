@@ -18,7 +18,7 @@
     let { addTrack, removeTrack, getCachedTracks }: Props = $props()
 
     let visible: boolean = $state(true)
-    let tabIndex: number = $state(4)
+    let tabIndex: number = $state(1)
 
     let minWidth = $state(300)
 

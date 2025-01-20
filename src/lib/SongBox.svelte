@@ -102,7 +102,7 @@
 
 <button
     class={{
-        'relative card card-hover aspect-square w-full flex flex-col p-2 border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
+        'relative card card-hover aspect-square items-center w-full flex flex-col p-2 border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
         'preset-filled-surface-100-900 !bg-opacity-50': !coverImage
     }}
     onclick={createPlaylist}
