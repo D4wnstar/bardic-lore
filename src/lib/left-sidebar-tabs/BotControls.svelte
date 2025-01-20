@@ -130,12 +130,12 @@
     <h3 class="type-scale-7 heading-font-weight px-2 text-primary-900-100">
         Bot Controls
     </h3>
-    <small class="small px-2 text-justify">
+    <p class="type-scale-1 px-2 text-justify">
         You need a token for Bardic Lore to communicate to the bot. Copy yours
         below.
-    </small>
+    </p>
 
-    <div class="px-2"><strong>Bot token</strong></div>
+    <p class="px-2"><b>Bot token</b></p>
     <input
         type="password"
         name="bot-token"

@@ -20,8 +20,8 @@
 
 <div class="flex gap-4">
     <div class="grow space-y-1">
-        <div>{name}</div>
-        <div class="type-scale-1 text-surface-800-200">{description}</div>
+        <header>{name}</header>
+        <p class="type-scale-1 text-surface-800-200">{description}</p>
     </div>
     <Switch
         name={switchName}

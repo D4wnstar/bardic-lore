@@ -116,10 +116,12 @@
         />
     {/if}
     <div class="relative">
-        <h3 class="type-scale-5 text-primary-800-200 line-clamp-3">
+        <h3
+            class="type-scale-5 text-primary-800-200 line-clamp-3 cursor-pointer"
+        >
             {track.title}
         </h3>
-        <p class="opacity-60">{track.album}</p>
+        <p class="opacity-60 cursor-pointer">{track.album}</p>
     </div>
 </button>
 

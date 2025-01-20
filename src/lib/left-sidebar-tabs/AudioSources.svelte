@@ -104,11 +104,11 @@
     <h3 class="type-scale-7 heading-font-weight px-2 text-primary-900-100">
         Audio Sources
     </h3>
-    <small class="small px-2 text-justify">
+    <p class="type-scale-1 px-2 text-justify">
         Audio Sources are the folders in which your audio files are contained.
         Audio files in these folders (and optionally sub-folders) will appear in
         the menu.
-    </small>
+    </p>
 
     <div class="overflow-auto space-y-2">
         {#each sources as source}

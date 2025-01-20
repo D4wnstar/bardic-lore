@@ -11,7 +11,8 @@
 </svelte:head>
 
 <ToastProvider>
-    <div class="h-screen w-screen">
+    <!-- Prevent drag-to-select on the whole UI (except modals) -->
+    <div class="h-screen w-screen select-none">
         {@render children()}
     </div>
 </ToastProvider>

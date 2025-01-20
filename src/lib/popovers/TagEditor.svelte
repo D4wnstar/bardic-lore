@@ -72,7 +72,7 @@
 <Modal
     bind:open
     classes="absolute"
-    contentClasses="preset-filled-surface-100-900 shadow-2xl p-4 w-1/3 h-1/2 space-y-2 overflow-auto"
+    contentClasses="preset-filled-surface-100-900 shadow-2xl p-4 w-1/3 h-1/2 space-y-2 overflow-auto select-none"
 >
     {#snippet content()}
         <div class="flex gap-3">
@@ -80,7 +80,7 @@
             <header class="type-scale-5">Tag editor</header>
         </div>
         <hr class="hr" />
-        <div>Track tags</div>
+        <p>Track tags</p>
         <div
             class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
             ondragover={handleDragOver}
@@ -102,7 +102,7 @@
                 <span class="opacity-40">Drag-and-drop your tags here...</span>
             {/each}
         </div>
-        <div>Existing tags</div>
+        <p>Existing tags</p>
         <div
             class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
             ondragover={handleDragOver}
