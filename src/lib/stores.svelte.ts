@@ -3,8 +3,8 @@
 // persistent storage.
 
 import { SvelteMap } from 'svelte/reactivity'
-import { LoopState, Parallel, Player, Playlist } from './state.svelte'
-import type { CachedTrack, Track } from './types'
+import { LoopState, Parallel, Player, Playlist, TagSet } from './state.svelte'
+import { type CachedTrack, type Track } from './types'
 
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
@@ -42,6 +42,14 @@ export const AUTOHIDE_SIDEBARS_SETTING = 'autohide-sidebars'
  */
 export const TRACKS_FILENAME = 'tracks.json'
 export const TRACKS_SETTING = 'tracks'
+
+/* TAGS */
+/**
+ * The tags store contains all of the user-defined tags, alongside
+ * information on what tracks they belong to.
+ */
+export const TAGS_FILENAME = 'tags.json'
+export const TAGS_SETTING = 'tags'
 
 /* DISCORD */
 /**
@@ -84,6 +92,8 @@ export const appState: AppState = $state({
     recentlyPlayed: [],
     parallel: new Parallel([])
 })
+
+export const appTags = new TagSet([])
 
 export type Settings = {
     showCovers: boolean

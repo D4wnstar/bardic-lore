@@ -12,7 +12,7 @@
 
     let coverImage: string | undefined = $state()
     onMount(async () => {
-        coverImage = await getCover('thumbnail', track.cover_hash)
+        coverImage = await getCover('thumbnail', track.coverHash)
     })
 </script>
 

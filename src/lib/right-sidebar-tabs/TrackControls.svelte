@@ -2,14 +2,16 @@
     import {
         type TrackActionPayload,
         UPDATE_TRACKS,
-        TrackAction
+        TrackAction,
+        TRACK_ENDED,
+        type TrackEventPayload
     } from '$lib/events'
     import { LoopState, type ParallelState } from '$lib/state.svelte'
     import { appState } from '$lib/stores.svelte'
     import TrackProgressBar from '$lib/utils/TrackProgressBar.svelte'
     import { getCover, rgbToHex } from '$lib/utils/utils'
     import VolumeSlider from '$lib/utils/VolumeSlider.svelte'
-    import { emit } from '@tauri-apps/api/event'
+    import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         Music,
         Pause,
@@ -19,7 +21,7 @@
         SkipBack,
         X
     } from 'lucide-svelte'
-    import { onMount } from 'svelte'
+    import { onDestroy, onMount } from 'svelte'
 
     interface Props {
         parallelState: ParallelState
@@ -85,8 +87,24 @@
     }
 
     let coverImage: string | undefined = $state()
+    let unlisten: UnlistenFn | undefined
     onMount(async () => {
-        coverImage = await getCover('thumbnail', parallelState.track.cover_hash)
+        coverImage = await getCover('thumbnail', parallelState.track.coverHash)
+
+        if (!parallel) {
+            await listen<TrackEventPayload>(TRACK_ENDED, async (ev) => {
+                if (!ev.payload.isParallel) {
+                    coverImage = await getCover(
+                        'thumbnail',
+                        parallelState.track.coverHash
+                    )
+                }
+            })
+        }
+    })
+
+    onDestroy(async () => {
+        if (unlisten) unlisten()
     })
 </script>
 

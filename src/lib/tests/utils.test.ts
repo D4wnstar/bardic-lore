@@ -7,7 +7,7 @@ const mockTrack1: Track = {
     album: 'Album1',
     artist: 'Artist1',
     duration: 123,
-    extension: 'ogg',
+    filename: 'file.ogg',
     path: '/path/to/file.ogg',
     uuid: '123-abc'
 }
@@ -16,7 +16,7 @@ const mockTrack2: Track = {
     album: 'Album',
     artist: 'Artist',
     duration: 123,
-    extension: 'ogg',
+    filename: 'file2.ogg',
     path: '/path/to/file2.ogg',
     uuid: '456-def'
 }
@@ -25,7 +25,7 @@ const mockTrack3: Track = {
     album: 'Album',
     artist: 'Artist',
     duration: 123,
-    extension: 'ogg',
+    filename: 'file3.ogg',
     path: '/path/to/file3.ogg',
     uuid: '789-ghi'
 }
@@ -55,7 +55,7 @@ describe('permuteTracks', () => {
             album: 'Album',
             artist: 'Artist',
             duration: 102,
-            extension: 'mp3',
+            filename: 'anywhere.mp3',
             path: '/somewhere/anywhere.mp3',
             uuid: '999999999'
         }

@@ -29,13 +29,20 @@ use crate::{
 };
 
 /* DATA STRUCTURES */
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct Tag {
+    pub value: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Track {
     pub title: String,
     pub album: Option<String>,
     pub artist: Option<String>,
     pub duration: Option<u64>,
     pub path: PathBuf,
+    pub filename: String,
     pub cover_hash: Option<String>,
 }
 
@@ -273,6 +280,7 @@ fn make_track(
         artist: metadata.artist,
         duration: metadata.duration.map(|t| t.seconds),
         path: path.clone(),
+        filename,
         cover_hash: metadata.cover_hash,
     });
 }

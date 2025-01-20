@@ -1,3 +1,8 @@
+import type { TrackSet } from './state.svelte'
+
+/**
+ * Information about an audio source and its state.
+ */
 export type AudioSource = {
     path: string
     recursive: boolean
@@ -11,12 +16,13 @@ export type AudioSource = {
  * as a `Track` instead, which also contains a UUID to identify it.
  */
 export type CachedTrack = {
-    title: string
+    title?: string
     album?: string
     artist?: string
     duration?: number
     path: string
-    cover_hash?: string
+    filename: string
+    coverHash?: string
 }
 
 /**
@@ -26,19 +32,26 @@ export type CachedTrack = {
  */
 export type Track = {
     uuid: string
-    title: string
+    title?: string
     album?: string
     artist?: string
     duration?: number
     path: string
-    cover_hash?: string
+    filename: string
+    coverHash?: string
 }
 
+/**
+ * A track with a mask flag. If mask is true, the track should be visible.
+ */
 export type MaskedTrack = {
     track: CachedTrack
     mask: boolean
 }
 
+/**
+ * Information about a Discord guild. Contains a list of voice channels.
+ */
 export type GuildSlug = {
     id: number
     name: string
@@ -46,8 +59,20 @@ export type GuildSlug = {
     offline: boolean
 }
 
+/**
+ * Information about a Discord voice channel.
+ */
 export type VoiceChannelSlug = {
     id: number
     name: string
     active: boolean
+}
+
+/**
+ * A tag for organization and filter. The `value` is the actual text of the
+ * tag, whereas the "owners" are all the tracks that have this tag on them.
+ */
+export type Tag = {
+    value: string
+    owners: TrackSet
 }

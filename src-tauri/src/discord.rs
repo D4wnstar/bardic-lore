@@ -294,6 +294,8 @@ async fn create_playlist(
     let queue = data.get::<QueueKey>().expect("Guaranteed to exist");
 
     queue.stop();
+    // Wait a few milliseconds to let the frontend process the events fired by stopping the queue
+    sleep(Duration::from_millis(50)).await;
     app.emit(QUEUE_EMPTIED, ()).unwrap();
 
     let mut tracks_data = payload.tracksData;
@@ -326,7 +328,8 @@ async fn create_playlist(
             "artist": track_data.artist,
             "duration": track_data.duration,
             "path": track_data.path,
-            "cover_hash": track_data.cover_hash,
+            "filename": track_data.filename,
+            "coverHash": track_data.cover_hash,
         }));
     }
     let out = serde_json::to_value(&response_tracks).unwrap();
@@ -395,7 +398,8 @@ async fn queue_track(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandle,
                 "artist": payload.trackData.artist,
                 "duration": payload.trackData.duration,
                 "path": payload.trackData.path,
-                "cover_hash": payload.trackData.cover_hash,
+                "filename": payload.trackData.filename,
+                "coverHash": payload.trackData.cover_hash,
             },
             "parallel": false,
             "queueMethod": payload.queueMethod,
@@ -433,6 +437,7 @@ async fn play_parallel(ev: tauri::Event, manager: &Arc<Songbird>, app: &AppHandl
                     "artist": payload.trackData.artist,
                     "duration": payload.trackData.duration,
                     "path": payload.trackData.path,
+                    "filename": payload.trackData.filename,
                     "cover_hash": payload.trackData.cover_hash,
                 },
                 "parallel": true,

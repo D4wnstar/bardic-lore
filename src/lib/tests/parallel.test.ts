@@ -25,7 +25,7 @@ describe('Parallel', () => {
         album: 'Album1',
         artist: 'Artist1',
         duration: 123,
-        extension: 'ogg',
+        filename: 'file.ogg',
         path: '/path/to/file.ogg',
         uuid: '123-abc'
     }
@@ -34,7 +34,7 @@ describe('Parallel', () => {
         album: 'Album2',
         artist: 'Artist2',
         duration: 123,
-        extension: 'ogg',
+        filename: 'file2.ogg',
         path: '/path/to/file2.ogg',
         uuid: '456-def'
     }

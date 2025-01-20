@@ -11,11 +11,12 @@
         CREATE_PLAYLIST,
         type CreatePlaylistPayload
     } from '$lib/events'
-    import ContextMenu from './ContextMenu.svelte'
-    import { Layers, Plus, Replace } from 'lucide-svelte'
+    import ContextMenu from './popovers/ContextMenu.svelte'
+    import { Layers, Plus, Replace, Tag } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
     import { getCover, permuteTracks } from './utils/utils'
     import { onDestroy, onMount } from 'svelte'
+    import TagEditor from './popovers/TagEditor.svelte'
 
     interface Props {
         track: CachedTrack
@@ -23,6 +24,7 @@
 
     let { track }: Props = $props()
 
+    let showTagEditor = $state(false)
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
     let contextMenuY = $state(0)
@@ -37,13 +39,13 @@
 
     async function createPlaylist() {
         if (appState.offline) return
-
         // This is guaranteed to work because the track needs to be in the list
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
             appState.availableTracks
         ) as CachedTrack[]
+        console.log(tracksToSend)
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
             tracksData: tracksToSend,
@@ -83,7 +85,7 @@
     onMount(async () => {
         const loadCover = async () => {
             if (settings.showCovers) {
-                coverImage = await getCover('cover', track.cover_hash)
+                coverImage = await getCover('cover', track.coverHash)
             } else {
                 coverImage = undefined
             }
@@ -100,7 +102,7 @@
 
 <button
     class={{
-        'relative card card-hover aspect-square h-full w-full flex flex-col items-center p-2 text-center border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
+        'relative card card-hover aspect-square w-full flex flex-col p-2 border-[1px] border-transparent hover:border-primary-100-900 overflow-hidden': true,
         'preset-filled-surface-100-900 !bg-opacity-50': !coverImage
     }}
     onclick={createPlaylist}
@@ -110,7 +112,7 @@
         <img
             src={coverImage}
             alt={`${track.album} cover art`}
-            class="absolute left-0 top-0 h-full w-full"
+            class="absolute left-0 top-0 w-full h-full"
         />
     {/if}
     <div class="relative">
@@ -128,13 +130,20 @@
         onclose={() => (showContextMenu = false)}
         items={[
             {
+                Icon: Tag,
+                label: 'Edit tags',
+                onclick: async () => {
+                    showTagEditor = !showTagEditor
+                }
+            },
+            {
                 Icon: Plus,
                 label: 'Add to queue',
                 onclick: async () => await addToQueue(QueueMethod.Priority)
             },
             {
                 Icon: Replace,
-                label: 'Replace current',
+                label: 'Replace current track',
                 onclick: async () =>
                     await addToQueue(QueueMethod.OverwriteCurrent)
             },
@@ -151,3 +160,5 @@
         ]}
     />
 {/if}
+
+<TagEditor bind:open={showTagEditor} {track} />

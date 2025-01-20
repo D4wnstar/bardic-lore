@@ -8,8 +8,8 @@ const mockTrack1: Track = {
     album: 'Album 1',
     artist: 'Artist 1',
     duration: 24,
-    path: 'path1',
-    extension: 'ext1'
+    path: 'path1/filename1.ogg',
+    filename: 'filename1.ogg'
 }
 const mockTrack2: Track = {
     uuid: '2',
@@ -17,8 +17,8 @@ const mockTrack2: Track = {
     album: 'Album 2',
     artist: 'Artist 2',
     duration: 83,
-    path: 'path2',
-    extension: 'ext2'
+    path: 'path2/filename2.flac',
+    filename: 'filename2.flac'
 }
 const mockTrack3: Track = {
     uuid: '3',
@@ -26,8 +26,8 @@ const mockTrack3: Track = {
     album: 'Album 3',
     artist: 'Artist 3',
     duration: 100,
-    path: 'path3',
-    extension: 'ext3'
+    path: 'path3/filename3.mp3',
+    filename: 'filename3.mp3'
 }
 const mockTrack4: Track = {
     uuid: '4',
@@ -35,8 +35,8 @@ const mockTrack4: Track = {
     album: 'Album 4',
     artist: 'Artist 4',
     duration: 11,
-    path: 'path4',
-    extension: 'ext4'
+    path: 'path4/filename4.wav',
+    filename: 'filename4.wav'
 }
 
 describe('Playlist class', () => {
