@@ -4,8 +4,10 @@
     import type { CachedTrack, Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { Modal } from '@skeletonlabs/skeleton-svelte'
+    import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import { load } from '@tauri-apps/plugin-store'
-    import { Tag as TagIcon } from 'lucide-svelte'
+    import { Tag as TagIcon, XCircle } from 'lucide-svelte'
+    import { onDestroy, onMount } from 'svelte'
 
     interface Props {
         track: CachedTrack
@@ -13,16 +15,10 @@
     }
     let { track, open = $bindable() }: Props = $props()
 
-    // We can't $derive trackTags because getByTrack mutates appTags and that's forbidden
     let trackTags = $state(appTags.getByTrack(track))
     let availableTags = $derived(appTags.difference(trackTags))
 
-    // console.log('TRACK', track.title ?? track.filename)
-    // console.log('GLOBAL:', $state.snapshot(appTags.tags))
-    // console.log('TRACK:', $state.snapshot(trackTags))
-    // console.log('AVAILABLE:', $state.snapshot(availableTags))
-    // console.log($state.snapshot(appTags.getByValue('Rain')))
-    // console.log('-------------------------')
+    let removeTagModalState = $state(false)
 
     let draggingTag: string | null = $state(null)
     const dragHoverClass = 'preset-outlined-surface-400-600'
@@ -87,6 +83,28 @@
             await store.set(TAGS_SETTING, appTags)
         }
     }
+
+    async function deleteTag(tag: Tag) {
+        appTags.delete(tag)
+
+        const store = await load(TAGS_FILENAME)
+        await store.set(TAGS_SETTING, appTags)
+
+        // Emit an event to be caught by other TagEditors so that they can
+        // delete this tag too, if it's in their track
+        await emit('deleted-tag', tag)
+    }
+
+    let unlisten: UnlistenFn | undefined
+    onMount(async () => {
+        unlisten = await listen<Tag>('deleted-tag', (ev) => {
+            trackTags.delete(ev.payload)
+        })
+    })
+
+    onDestroy(() => {
+        if (unlisten) unlisten()
+    })
 </script>
 
 <Modal
@@ -140,9 +158,46 @@
                 <TagChip
                     draggable={true}
                     ondragstart={(e) => handleDragStart(e, tag.value)}
-                    showRemove
                     {tag}
-                />
+                >
+                    {#snippet removeBtn()}
+                        <Modal
+                            bind:open={removeTagModalState}
+                            triggerClasses="mr-1 mt-1"
+                            contentBackground="bg-surface-100-900"
+                            contentClasses="shadow-xl border-2 border-error-100-900 p-4 flex flex-col gap-2"
+                        >
+                            {#snippet trigger()}
+                                <XCircle size="16" />
+                            {/snippet}
+                            {#snippet content()}
+                                <p>
+                                    This will delete the tag from all tracks
+                                    that have it. <b
+                                        >This action is irreversible.</b
+                                    >
+                                </p>
+                                <footer class="self-end">
+                                    <button
+                                        class="btn preset-tonal"
+                                        onclick={() => {
+                                            removeTagModalState = false
+                                        }}>Cancel</button
+                                    >
+                                    <button
+                                        class="btn preset-tonal-error"
+                                        onclick={() => {
+                                            deleteTag(tag)
+                                            removeTagModalState = false
+                                        }}>Delete</button
+                                    >
+                                </footer>
+                            {/snippet}
+                        </Modal>
+                    {/snippet}
+                </TagChip>
+            {:else}
+                <span class="opacity-40">Create new tags in the box above</span>
             {/each}
         </div>
     {/snippet}

@@ -1,6 +1,6 @@
 <script lang="ts">
     import type { Tag } from '$lib/types'
-    import { XCircle } from 'lucide-svelte'
+    import type { Snippet } from 'svelte'
 
     interface Props {
         tag: Tag
@@ -10,26 +10,23 @@
                 currentTarget: EventTarget & HTMLDivElement
             }
         ) => void
-        showRemove?: boolean
+        removeBtn?: Snippet
     }
 
-    let { tag, draggable, ondragstart, showRemove }: Props = $props()
+    let { tag, draggable, ondragstart, removeBtn }: Props = $props()
 </script>
 
 <div
     class={{
         'chip preset-filled': true,
-        'cursor-grab': draggable,
-        'cursor-default': !draggable
+        'cursor-grab': draggable
     }}
     {draggable}
     {ondragstart}
     role="listitem"
 >
-    {#if showRemove}
-        <button class="">
-            <XCircle size="16" class="mr-1" />
-        </button>
+    {#if removeBtn}
+        {@render removeBtn()}
     {/if}
     {tag.value}
 </div>

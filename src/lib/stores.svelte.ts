@@ -65,7 +65,7 @@ export type AppState = {
     guildId: number
     player: Player
     offline: boolean
-    availableTracks: CachedTrack[]
+    searchTerm: string
     playlist: Playlist
     recentlyPlayed: Track[]
     parallel: Parallel
@@ -79,6 +79,7 @@ export type AppState = {
 export const appState: AppState = $state({
     guildId: 0,
     offline: true,
+    searchTerm: '',
     player: new Player({
         playing: false,
         position: 0,
@@ -87,7 +88,6 @@ export const appState: AppState = $state({
         shuffle: false,
         mute: false
     }),
-    availableTracks: [],
     playlist: new Playlist([], [], []),
     recentlyPlayed: [],
     parallel: new Parallel([])

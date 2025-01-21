@@ -1,6 +1,6 @@
 <script lang="ts">
     import { appState, settings, skipRemoveOnEnd } from './stores.svelte'
-    import type { CachedTrack } from './types'
+    import type { CachedTrack, MaskedTrack } from './types'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         PLAY_PARALLEL,
@@ -20,9 +20,10 @@
 
     interface Props {
         track: CachedTrack
+        tracks: MaskedTrack[]
     }
 
-    let { track }: Props = $props()
+    let { track, tracks }: Props = $props()
 
     let showTagEditor = $state(false)
     let showContextMenu = $state(false)
@@ -43,7 +44,7 @@
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
-            appState.availableTracks
+            tracks.filter((mt) => mt.mask).map((mt) => mt.track)
         ) as CachedTrack[]
         console.log(tracksToSend)
         await emit(CREATE_PLAYLIST, {

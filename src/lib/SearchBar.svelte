@@ -2,10 +2,11 @@
     import { Search } from 'lucide-svelte'
 
     interface Props {
-        filterTracks: (searchTerm: string) => void
+        searchTerm: string
+        filterTracks: () => void
     }
 
-    let { filterTracks }: Props = $props()
+    let { searchTerm = $bindable(''), filterTracks }: Props = $props()
 </script>
 
 <header
@@ -14,7 +15,8 @@
     <Search />
     <input
         type="search"
-        oninput={(e) => filterTracks(e.currentTarget.value)}
+        oninput={(_) => filterTracks()}
+        bind:value={searchTerm}
         class="h-12 grow border-none bg-transparent focus:ring-0"
         placeholder="Search songs..."
     />

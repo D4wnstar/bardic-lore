@@ -5,7 +5,7 @@
     import LeftSidebar from '$lib/LeftSidebar.svelte'
     import type { CachedTrack, MaskedTrack } from '$lib/types'
     import {
-        appState,
+        appTags,
         settings,
         TRACKS_FILENAME,
         TRACKS_SETTING
@@ -19,17 +19,16 @@
     import { Folder, Wind } from 'lucide-svelte'
     import { createDiscordClient, rgbToHex } from '$lib/utils/utils'
     import { fade } from 'svelte/transition'
+    import { TagSet } from '$lib/state.svelte'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
     )
 
     let tracks: MaskedTrack[] = $state([])
-    $effect(() => {
-        appState.availableTracks = tracks
-            .filter((t) => t.mask)
-            .map((t) => t.track)
-    })
+    let searchTerm: string = $state('')
+    let selectedTags: TagSet = $state(new TagSet([]))
+    let tagsMode: 'any' | 'all' = $state('all')
 
     async function getCachedTracks() {
         const store = await load(TRACKS_FILENAME, { autoSave: false })
@@ -65,14 +64,29 @@
         if (idxToDelete >= 0) tracks.splice(idxToDelete, 1)
     }
 
-    function filterTracks(searchTerm: string) {
-        if (searchTerm.length > 0) {
-            for (const pair of tracks) {
+    function filterTracks() {
+        for (const pair of tracks) {
+            let foundSearchTerm = true
+            if (searchTerm.length > 0) {
                 const title = pair.track.title ?? pair.track.filename
-                pair.mask = title.toLocaleLowerCase().includes(searchTerm)
+                foundSearchTerm = title.toLocaleLowerCase().includes(searchTerm)
             }
-        } else {
-            tracks.forEach((pair) => (pair.mask = true))
+
+            let foundTag = true
+            const trackTags = appTags.getByTrack(pair.track)
+            if (selectedTags.size > 0) {
+                if (tagsMode === 'all') {
+                    foundTag = selectedTags.tags.every((tag) =>
+                        trackTags.has(tag)
+                    )
+                } else if (tagsMode === 'any') {
+                    foundTag = selectedTags.tags.some((tag) =>
+                        trackTags.has(tag)
+                    )
+                }
+            }
+
+            pair.mask = foundSearchTerm && foundTag
         }
     }
 
@@ -100,19 +114,26 @@
 </script>
 
 <div class="flex h-screen">
-    <LeftSidebar {addTrack} {removeTrack} {getCachedTracks} />
+    <LeftSidebar
+        bind:selectedTags
+        bind:tagsMode
+        {addTrack}
+        {removeTrack}
+        {getCachedTracks}
+        {filterTracks}
+    />
     <main class="flex flex-col p-4 min-h-0 grow">
         <div class="flex grow min-h-0">
             <div class="flex grow flex-col">
-                <SearchBar {filterTracks} />
+                <SearchBar bind:searchTerm {filterTracks} />
                 {#if tracks.length > 0}
                     <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
-                        {#each appState.availableTracks as track (track.path)}
+                        {#each tracks.filter((t) => t.mask) as { track } (track)}
                             <div
                                 class="flex-[10rem] xl:flex-[12rem] max-w-[14rem]"
                                 transition:fade={{ duration: 200 }}
                             >
-                                <SongBox {track} />
+                                <SongBox {track} {tracks} />
                             </div>
                         {/each}
                     </div>

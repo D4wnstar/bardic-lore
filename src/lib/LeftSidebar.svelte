@@ -9,13 +9,25 @@
     import { onMount } from 'svelte'
     import type { CachedTrack } from './types'
     import { settings } from './stores.svelte'
+    import { TagSet } from './state.svelte'
 
     interface Props {
         addTrack: (track: CachedTrack) => void
         removeTrack: (track: CachedTrack) => void
         getCachedTracks: () => Promise<void>
+        filterTracks: () => void
+        selectedTags: TagSet
+        tagsMode: 'any' | 'all'
     }
-    let { addTrack, removeTrack, getCachedTracks }: Props = $props()
+
+    let {
+        addTrack,
+        removeTrack,
+        getCachedTracks,
+        filterTracks,
+        selectedTags = $bindable(new TagSet([])),
+        tagsMode = $bindable('all')
+    }: Props = $props()
 
     let visible: boolean = $state(true)
     let tabIndex: number = $state(1)
@@ -111,7 +123,7 @@
             transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}
         >
             {#if tabIndex === 1}
-                <Tags />
+                <Tags bind:selectedTags bind:tagsMode {filterTracks} />
             {:else if tabIndex === 2}
                 <AudioSources {addTrack} {removeTrack} {getCachedTracks} />
             {:else if tabIndex === 3}

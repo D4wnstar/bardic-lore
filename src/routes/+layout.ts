@@ -26,7 +26,6 @@ import {
     UPDATE_PLAYER,
     type AddTrackPayload,
     ADD_TRACK,
-    QUEUE_EMPTIED,
     LEFT_VOICE_CHANNEL,
     type PlaylistCreatedPayload,
     PLAYLIST_CREATED,
@@ -186,15 +185,6 @@ export const load = (async () => {
             })
         }
     })
-
-    // await listen<any>(QUEUE_EMPTIED, (_ev) => {
-    //     const current = appState.playlist.current()
-    //     if (current) {
-    //         appState.recentlyPlayed.push(current)
-    //     }
-    //     appState.playlist.clear()
-    //     appState.player.reset()
-    // })
 
     await listen<any>(LEFT_VOICE_CHANNEL, (_ev) => {
         const current = appState.playlist.current()
