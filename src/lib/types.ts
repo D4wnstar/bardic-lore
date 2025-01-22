@@ -1,4 +1,4 @@
-import type { TrackSet } from './state.svelte'
+import type { TagSet, TrackSet } from './state.svelte'
 
 /**
  * Information about an audio source and its state.
@@ -42,11 +42,11 @@ export type Track = {
 }
 
 /**
- * A track with a mask flag. If mask is true, the track should be visible.
+ * A track with a mask flag.
  */
 export type MaskedTrack = {
     track: CachedTrack
-    mask: boolean
+    visible: boolean
 }
 
 /**
@@ -69,10 +69,34 @@ export type VoiceChannelSlug = {
 }
 
 /**
- * A tag for organization and filter. The `value` is the actual text of the
+ * A tag for organization and filtering. The `value` is the actual text of the
  * tag, whereas the "owners" are all the tracks that have this tag on them.
+ * `group` is the name of the group the `TagGroup` the tag is in, if any.
  */
 export type Tag = {
     value: string
     owners: TrackSet
+    group?: string
 }
+
+/**
+ * A group of related tags identified by a name.
+ */
+export type TagGroup = {
+    name: string
+    tagSet: TagSet
+}
+
+/**
+ * The name of the default `TagGroup` that's should be guaranteed
+ * to exist.
+ */
+export const DEFAULT_GROUP = 'Uncategorized'
+/**
+ * The name of the built-in album group.
+ */
+export const ALBUM_GROUP = 'Albums'
+/**
+ * The name of the built-in artist group.
+ */
+export const ARTIST_GROUP = 'Artists'

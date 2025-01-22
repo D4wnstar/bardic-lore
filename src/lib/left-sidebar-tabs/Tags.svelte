@@ -1,9 +1,12 @@
 <script lang="ts">
-    import { TagSet } from '$lib/state.svelte'
+    import { TagGroupSet, TagSet } from '$lib/state.svelte'
     import { appTags } from '$lib/stores.svelte'
-    import type { Tag } from '$lib/types'
+    import { DEFAULT_GROUP, type Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { Search } from 'lucide-svelte'
+    import { flip } from 'svelte/animate'
+    import { quintOut } from 'svelte/easing'
+    import { crossfade } from 'svelte/transition'
 
     interface Props {
         selectedTags: TagSet
@@ -17,19 +20,45 @@
         filterTracks
     }: Props = $props()
 
-    let availableTags = $derived(appTags.difference(selectedTags))
+    let filteredGroups = $derived.by(() => {
+        const filtered = appTags.groups.map((g) => {
+            return {
+                name: g.name,
+                tagSet: g.tagSet.difference(selectedTags)
+            }
+        })
+        return new TagGroupSet(filtered)
+    })
 
     function handleAvailableClick(tag: Tag) {
         selectedTags.add(tag)
-        availableTags.delete(tag)
+        filteredGroups.deleteTag(tag.group ?? DEFAULT_GROUP, tag)
         filterTracks()
     }
 
     function handleSelectedClick(tag: Tag) {
-        availableTags.add(tag)
+        filteredGroups.addTag(tag.group ?? DEFAULT_GROUP, tag)
         selectedTags.delete(tag)
         filterTracks()
     }
+
+    const [send, receive] = crossfade({
+        duration: (d) => Math.sqrt(d * 200),
+
+        fallback(node, _params) {
+            const style = getComputedStyle(node)
+            const transform = style.transform === 'none' ? '' : style.transform
+
+            return {
+                duration: 600,
+                easing: quintOut,
+                css: (t) => `
+				transform: ${transform} scale(${t});
+				opacity: ${t}
+			`
+            }
+        }
+    })
 </script>
 
 <div id="tag-sidebar" class="flex flex-col h-full min-h-0">
@@ -69,7 +98,9 @@
         >
     </div>
 
-    <div class="flex-1 overflow-auto min-h-0 mx-2 space-y-2">
+    <div
+        class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 mx-2 space-y-2"
+    >
         <div
             class="preset-filled-surface-100-900 !bg-opacity-50 border-[1px] border-primary-100-900 !border-opacity-70 rounded-md p-2"
         >
@@ -77,13 +108,18 @@
                 <b>Selected</b>
             </p>
             <div class="flex flex-wrap gap-1">
-                {#each selectedTags as tag}
-                    <button
-                        class="cursor-pointer hover:opacity-70"
-                        onclick={(_e) => handleSelectedClick(tag)}
+                {#each selectedTags.sorted() as tag (tag)}
+                    <div
+                        in:receive={{ key: tag.value }}
+                        out:send={{ key: tag.value }}
+                        animate:flip={{ duration: 100 }}
                     >
-                        <TagChip {tag} />
-                    </button>
+                        <TagChip
+                            {tag}
+                            classes="hover:opacity-70"
+                            onclick={async () => handleSelectedClick(tag)}
+                        />
+                    </div>
                 {:else}
                     <span class="opacity-40"
                         >Select tags by clicking on them</span
@@ -92,25 +128,39 @@
             </div>
         </div>
         <div
-            class="preset-filled-surface-100-900 !bg-opacity-50 border-[1px] border-primary-100-900 !border-opacity-70 rounded-md p-2"
+            class="preset-filled-surface-100-900 !bg-opacity-50 border-[1px] border-primary-100-900 !border-opacity-70 rounded-md p-2 space-y-1"
         >
             <p class="text-secondary-700-300 mb-2">
                 <b>Available</b>
             </p>
-            <div class="flex flex-wrap gap-1">
-                {#each availableTags as tag}
-                    <button
-                        class="cursor-pointer hover:opacity-70"
-                        onclick={(_e) => handleAvailableClick(tag)}
-                    >
-                        <TagChip {tag} />
-                    </button>
-                {:else}
-                    <span class="opacity-40"
-                        >Add tags by right clicking on tracks</span
-                    >
+            {#if filteredGroups.size === 0 || filteredGroups.groups.every((g) => g.tagSet.size === 0)}
+                <span class="opacity-40"
+                    >Add tags by right clicking on tracks</span
+                >
+            {:else}
+                {#each filteredGroups.groups.filter((g) => g.tagSet.size > 0) as group (group)}
+                    <p class="pl-1 text-secondary-950-50">{group.name}</p>
+                    <div class="flex flex-wrap justify-stretch gap-1">
+                        {#each group.tagSet.sorted() as tag (tag)}
+                            <div
+                                in:receive={{ key: tag.value }}
+                                out:send={{ key: tag.value }}
+                                animate:flip={{ duration: 100 }}
+                            >
+                                <TagChip
+                                    {tag}
+                                    classes="hover:opacity-70"
+                                    onclick={async () =>
+                                        handleAvailableClick(tag)}
+                                    preset="preset-tonal"
+                                />
+                            </div>
+                        {:else}
+                            <p class="opacity-40 pl-1">This group is empty</p>
+                        {/each}
+                    </div>
                 {/each}
-            </div>
+            {/if}
         </div>
     </div>
 </div>

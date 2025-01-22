@@ -4,28 +4,49 @@
         AUTOHIDE_SIDEBARS_SETTING,
         settings,
         SETTINGS_FILENAME,
+        SHOW_ALBUM_TAGS,
+        SHOW_ARTIST_TAGS,
         SHOW_COVERS_SETTING
     } from '$lib/stores.svelte'
     import SwitchSetting from '$lib/utils/settings/SwitchSetting.svelte'
     import { emit } from '@tauri-apps/api/event'
-    import { load } from '@tauri-apps/plugin-store'
+    import { load, Store } from '@tauri-apps/plugin-store'
+    import { onMount } from 'svelte'
+
+    interface Props {
+        getCachedTracks: () => Promise<void>
+    }
+
+    let { getCachedTracks }: Props = $props()
+    let store: Store
 
     async function showCovers(newState: boolean) {
-        const store = await load(SETTINGS_FILENAME)
         store.set(SHOW_COVERS_SETTING, newState)
         // Send an event to tell SongBoxes to reload their cover
         await emit('reload-cover')
     }
 
     async function connectOnLaunch(newState: boolean) {
-        const store = await load(SETTINGS_FILENAME)
         store.set(AUTOCONNECT_SETTING, newState)
     }
 
     async function autohideSidebars(newState: boolean) {
-        const store = await load(SETTINGS_FILENAME)
         store.set(AUTOHIDE_SIDEBARS_SETTING, newState)
     }
+
+    async function showAlbumTags(newState: boolean) {
+        store.set(SHOW_ALBUM_TAGS, newState)
+        await getCachedTracks()
+    }
+
+    async function showArtistTags(newState: boolean) {
+        store.set(SHOW_ARTIST_TAGS, newState)
+        await getCachedTracks()
+    }
+
+    onMount(async () => {
+        store = await load(SETTINGS_FILENAME)
+    })
 </script>
 
 <div id="settings-sidebar" class="flex flex-col h-full min-h-0 pb-5 px-2">
@@ -60,6 +81,24 @@
                 switchName="autoconnect"
                 bind:checked={settings.autoconnect}
                 onCheckedChange={connectOnLaunch}
+            />
+        </section>
+        <section class="space-y-4">
+            <header class="type-scale-4">Tags</header>
+            <hr class="hr" />
+            <SwitchSetting
+                name="Show album tags"
+                description="If on, the album tag group will be shown."
+                switchName="album-tags"
+                bind:checked={settings.showAlbumTags}
+                onCheckedChange={showAlbumTags}
+            />
+            <SwitchSetting
+                name="Show artist tags"
+                description="If on, the artist tag group will be shown."
+                switchName="artist-tags"
+                bind:checked={settings.showArtistTags}
+                onCheckedChange={showArtistTags}
             />
         </section>
     </div>

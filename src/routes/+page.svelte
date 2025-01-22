@@ -3,7 +3,12 @@
     import RightSidebar from '$lib/RightSidebar.svelte'
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
-    import type { CachedTrack, MaskedTrack } from '$lib/types'
+    import {
+        ALBUM_GROUP,
+        ARTIST_GROUP,
+        type CachedTrack,
+        type MaskedTrack
+    } from '$lib/types'
     import {
         appTags,
         settings,
@@ -19,7 +24,8 @@
     import { Folder, Wind } from 'lucide-svelte'
     import { createDiscordClient, rgbToHex } from '$lib/utils/utils'
     import { fade } from 'svelte/transition'
-    import { TagSet } from '$lib/state.svelte'
+    import { TagSet, TrackSet } from '$lib/state.svelte'
+    import Fuse from 'fuse.js'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
@@ -34,9 +40,40 @@
         const store = await load(TRACKS_FILENAME, { autoSave: false })
         const cachedTracks =
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
+
+        // Reset album and artist groups to refresh tags based on available tracks
+        appTags.delete(ALBUM_GROUP)
+        appTags.add({ name: ALBUM_GROUP, tagSet: new TagSet([]) })
+        appTags.delete(ARTIST_GROUP)
+        appTags.add({ name: ARTIST_GROUP, tagSet: new TagSet([]) })
+
         tracks = cachedTracks
             .map((track) => {
-                return { track, mask: true }
+                if (settings.showAlbumTags && track.album) {
+                    const newTag = {
+                        value: track.album,
+                        owners: new TrackSet([track])
+                    }
+                    if (appTags.getTag(track.album)) {
+                        appTags.addTagOwners(ALBUM_GROUP, newTag)
+                    } else {
+                        appTags.addTag(ALBUM_GROUP, newTag)
+                    }
+                }
+
+                if (settings.showArtistTags && track.artist) {
+                    const newTag = {
+                        value: track.artist,
+                        owners: new TrackSet([track])
+                    }
+                    if (appTags.getTag(track.artist)) {
+                        appTags.addTagOwners(ARTIST_GROUP, newTag)
+                    } else {
+                        appTags.addTag(ARTIST_GROUP, newTag)
+                    }
+                }
+
+                return { track, visible: true }
             })
             .toSorted((a, b) => {
                 const titleA = a.track.title ?? a.track.filename
@@ -53,7 +90,7 @@
                 const titleB = track.title ?? track.filename
                 return titleA.localeCompare(titleB) === 1
             })
-            tracks.splice(sortedIndex, 0, { track, mask: true })
+            tracks.splice(sortedIndex, 0, { track, visible: true })
         }
     }
 
@@ -65,16 +102,27 @@
     }
 
     function filterTracks() {
-        for (const pair of tracks) {
-            let foundSearchTerm = true
-            if (searchTerm.length > 0) {
-                const title = pair.track.title ?? pair.track.filename
-                foundSearchTerm = title.toLocaleLowerCase().includes(searchTerm)
-            }
+        // First, set all tracks to not be visible
+        tracks.forEach((pair) => (pair.visible = false))
 
+        // Then, run string similarity search with Fuse
+        let searchedTracks: MaskedTrack[]
+        if (searchTerm.length > 0) {
+            const fuse = new Fuse(tracks, {
+                keys: ['track.title', 'track.filename'],
+                threshold: 0.3
+            })
+            searchedTracks = fuse.search(searchTerm).map((res) => res.item)
+        } else {
+            searchedTracks = tracks
+        }
+
+        // Finally, filter by presence of tags
+        for (const pair of searchedTracks) {
             let foundTag = true
-            const trackTags = appTags.getByTrack(pair.track)
+
             if (selectedTags.size > 0) {
+                const trackTags = appTags.getByTrack(pair.track)
                 if (tagsMode === 'all') {
                     foundTag = selectedTags.tags.every((tag) =>
                         trackTags.has(tag)
@@ -86,7 +134,7 @@
                 }
             }
 
-            pair.mask = foundSearchTerm && foundTag
+            pair.visible = foundTag
         }
     }
 
@@ -128,13 +176,15 @@
                 <SearchBar bind:searchTerm {filterTracks} />
                 {#if tracks.length > 0}
                     <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
-                        {#each tracks.filter((t) => t.mask) as { track } (track)}
-                            <div
-                                class="flex-[10rem] xl:flex-[12rem] max-w-[14rem]"
-                                transition:fade={{ duration: 200 }}
-                            >
-                                <SongBox {track} {tracks} />
-                            </div>
+                        {#each tracks as pair (pair)}
+                            {#if pair.visible}
+                                <div
+                                    class="flex-[10rem] xl:flex-[12rem] max-w-[14rem]"
+                                    transition:fade={{ duration: 100 }}
+                                >
+                                    <SongBox track={pair.track} {tracks} />
+                                </div>
+                            {/if}
                         {/each}
                     </div>
                 {:else}

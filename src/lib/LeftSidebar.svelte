@@ -129,7 +129,7 @@
             {:else if tabIndex === 3}
                 <BotControls />
             {:else if tabIndex === 4}
-                <AppSettings />
+                <AppSettings {getCachedTracks} />
             {/if}
         </div>
     {/if}

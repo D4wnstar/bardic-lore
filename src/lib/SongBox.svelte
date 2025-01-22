@@ -1,6 +1,17 @@
 <script lang="ts">
-    import { appState, settings, skipRemoveOnEnd } from './stores.svelte'
-    import type { CachedTrack, MaskedTrack } from './types'
+    import {
+        appState,
+        appTags,
+        settings,
+        skipRemoveOnEnd
+    } from './stores.svelte'
+    import {
+        ALBUM_GROUP,
+        ARTIST_GROUP,
+        type CachedTrack,
+        type MaskedTrack,
+        type Tag
+    } from './types'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         PLAY_PARALLEL,
@@ -12,11 +23,12 @@
         type CreatePlaylistPayload
     } from '$lib/events'
     import ContextMenu from './popovers/ContextMenu.svelte'
-    import { Layers, Plus, Replace, Tag } from 'lucide-svelte'
+    import { Layers, Plus, Replace, TagIcon } from 'lucide-svelte'
     import { LoopState } from './state.svelte'
     import { getCover, permuteTracks } from './utils/utils'
     import { onDestroy, onMount } from 'svelte'
     import TagEditor from './popovers/TagEditor.svelte'
+    import TagChip from './utils/TagChip.svelte'
 
     interface Props {
         track: CachedTrack
@@ -30,6 +42,7 @@
     let contextMenuX = $state(0)
     let contextMenuY = $state(0)
     let coverImage: string | undefined = $state()
+    let tags = $state(appTags.getByTrack(track))
 
     function handleContextMenu(event: MouseEvent) {
         event.preventDefault()
@@ -44,9 +57,8 @@
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
-            tracks.filter((mt) => mt.mask).map((mt) => mt.track)
+            tracks.filter((mt) => mt.visible).map((mt) => mt.track)
         ) as CachedTrack[]
-        console.log(tracksToSend)
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
             tracksData: tracksToSend,
@@ -79,6 +91,14 @@
                 volume: appState.player.volume,
                 looping
             } satisfies PlayParallelPayload)
+        }
+    }
+
+    function handleTagEdit(tag: Tag, outcome: 'add' | 'remove') {
+        if (outcome === 'add') {
+            tags.add(tag)
+        } else if (outcome === 'remove') {
+            tags.delete(tag)
         }
     }
 
@@ -123,6 +143,17 @@
             {track.title}
         </h3>
         <p class="opacity-60 cursor-pointer">{track.album}</p>
+        <div class="mt-2 flex flex-wrap justify-center gap-1">
+            {#each tags
+                .sorted()
+                .filter((tag) => tag.group !== ALBUM_GROUP && tag.group !== ARTIST_GROUP) as tag}
+                <TagChip
+                    {tag}
+                    classes="hover:brightness-100"
+                    preset="preset-tonal"
+                />
+            {/each}
+        </div>
     </div>
 </button>
 
@@ -133,7 +164,7 @@
         onclose={() => (showContextMenu = false)}
         items={[
             {
-                Icon: Tag,
+                Icon: TagIcon,
                 label: 'Edit tags',
                 onclick: async () => {
                     showTagEditor = !showTagEditor
@@ -164,4 +195,4 @@
     />
 {/if}
 
-<TagEditor bind:open={showTagEditor} {track} />
+<TagEditor bind:open={showTagEditor} {track} {handleTagEdit} />

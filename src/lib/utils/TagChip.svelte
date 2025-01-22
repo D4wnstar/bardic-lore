@@ -4,29 +4,30 @@
 
     interface Props {
         tag: Tag
-        draggable?: boolean
-        ondragstart?: (
-            ev: DragEvent & {
-                currentTarget: EventTarget & HTMLDivElement
-            }
-        ) => void
-        removeBtn?: Snippet
+        onclick?: () => Promise<void>
+        removeBtn?: Snippet<[Tag]>
+        classes?: string
+        preset?: string
     }
 
-    let { tag, draggable, ondragstart, removeBtn }: Props = $props()
+    let {
+        tag,
+        onclick,
+        removeBtn,
+        classes,
+        preset = 'preset-filled'
+    }: Props = $props()
 </script>
 
-<div
-    class={{
-        'chip preset-filled': true,
-        'cursor-grab': draggable
-    }}
-    {draggable}
-    {ondragstart}
-    role="listitem"
->
+<div class="chip {preset} {classes} text-wrap" role="listitem">
     {#if removeBtn}
-        {@render removeBtn()}
+        {@render removeBtn(tag)}
     {/if}
-    {tag.value}
+    {#if onclick}
+        <button onclick={async (_e) => await onclick()}>
+            {tag.value}
+        </button>
+    {:else}
+        <span>{tag.value}</span>
+    {/if}
 </div>

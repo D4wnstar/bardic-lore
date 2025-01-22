@@ -3,8 +3,14 @@
 // persistent storage.
 
 import { SvelteMap } from 'svelte/reactivity'
-import { LoopState, Parallel, Player, Playlist, TagSet } from './state.svelte'
-import { type CachedTrack, type Track } from './types'
+import {
+    LoopState,
+    Parallel,
+    Player,
+    Playlist,
+    TagGroupSet
+} from './state.svelte'
+import { type Track } from './types'
 
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
@@ -31,6 +37,8 @@ export const LOOP_SETTING = 'loop'
 
 export const SHOW_COVERS_SETTING = 'show-covers'
 export const AUTOHIDE_SIDEBARS_SETTING = 'autohide-sidebars'
+export const SHOW_ALBUM_TAGS = 'show-album-tags'
+export const SHOW_ARTIST_TAGS = 'show-artist-tags'
 
 /* TRACKS */
 /**
@@ -93,18 +101,22 @@ export const appState: AppState = $state({
     parallel: new Parallel([])
 })
 
-export const appTags = new TagSet([])
+export const appTags = new TagGroupSet([])
 
 export type Settings = {
     showCovers: boolean
     autoconnect: boolean
     autohideSidebars: boolean
+    showAlbumTags: boolean
+    showArtistTags: boolean
 }
 
 export const settings: Settings = $state({
     showCovers: true,
     autoconnect: false,
-    autohideSidebars: true
+    autohideSidebars: true,
+    showAlbumTags: false,
+    showArtistTags: false
 })
 
 /**

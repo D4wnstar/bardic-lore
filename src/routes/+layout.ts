@@ -10,7 +10,10 @@ import {
     skipRemoveOnEnd,
     appTags,
     TAGS_FILENAME,
-    TAGS_SETTING
+    TAGS_SETTING,
+    AUTOHIDE_SIDEBARS_SETTING,
+    SHOW_ALBUM_TAGS,
+    SHOW_ARTIST_TAGS
 } from '$lib/stores.svelte'
 import { load as tauriLoad } from '@tauri-apps/plugin-store'
 import type { LayoutLoad } from './$types'
@@ -33,8 +36,14 @@ import {
     QUEUE_SORTED,
     QueueMethod
 } from '$lib/events'
-import { LoopState, Player, TrackSet } from '$lib/state.svelte'
-import type { Tag, Track } from '$lib/types'
+import { LoopState, Player, TagSet, TrackSet } from '$lib/state.svelte'
+import {
+    ALBUM_GROUP,
+    ARTIST_GROUP,
+    DEFAULT_GROUP,
+    type TagGroup,
+    type Track
+} from '$lib/types'
 import { listen, emit } from '@tauri-apps/api/event'
 
 export const load = (async () => {
@@ -55,13 +64,27 @@ export const load = (async () => {
         (await settingsStore.get(SHOW_COVERS_SETTING)) ?? settings.showCovers
     settings.autoconnect =
         (await settingsStore.get(AUTOCONNECT_SETTING)) ?? settings.autoconnect
+    settings.autohideSidebars =
+        (await settingsStore.get(AUTOHIDE_SIDEBARS_SETTING)) ??
+        settings.autohideSidebars
+    settings.showAlbumTags =
+        (await settingsStore.get(SHOW_ALBUM_TAGS)) ?? settings.showAlbumTags
+    settings.showArtistTags =
+        (await settingsStore.get(SHOW_ARTIST_TAGS)) ?? settings.showArtistTags
 
     // Tags
-    const cachedTags = (await tagsStore.get<Tag[]>(TAGS_SETTING)) ?? []
-    //@ts-expect-error JavaScript has no clue how to deserialize into a class so we create TrackSets manually
-    cachedTags.forEach((t) => (t.owners = new TrackSet(t.owners)))
-    for (const tag of cachedTags) {
-        appTags.add(tag)
+    const cachedGroups = (await tagsStore.get<TagGroup[]>(TAGS_SETTING)) ?? []
+
+    appTags.add({ name: DEFAULT_GROUP, tagSet: new TagSet([]) })
+    appTags.add({ name: ALBUM_GROUP, tagSet: new TagSet([]) })
+    appTags.add({ name: ARTIST_GROUP, tagSet: new TagSet([]) })
+    for (const group of cachedGroups) {
+        //@ts-expect-error JavaScript has no clue how to deserialize into a class so we create TagSets manually
+        group.tagSet = new TagSet(group.tagSet)
+        //@ts-expect-error Same for TrackSets
+        group.tagSet.tags.forEach((t) => (t.owners = new TrackSet(t.owners)))
+
+        appTags.add(group)
     }
 
     // Setup all the global event listeners
@@ -85,7 +108,6 @@ export const load = (async () => {
 
     await listen<TrackEventPayload>(TRACK_ENDED, async (ev) => {
         if (ev.payload.isParallel === false) {
-            console.log('Track ended')
             // If there is a track to overwrite, overwrite the current track
             // otherwise push to the end of queue
             let endedTrack: Track | undefined

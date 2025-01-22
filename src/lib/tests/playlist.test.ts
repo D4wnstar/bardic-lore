@@ -52,36 +52,38 @@ describe('Playlist class', () => {
     })
 
     it('next plays priority track first', () => {
-        const queue: Track[] = [mockTrack1]
+        const queue: Track[] = [mockTrack1, mockTrack3]
         const previous: Track[] = []
         const priority: Track[] = [mockTrack2]
         const playlist = new Playlist(queue, previous, priority)
 
         const result = playlist.next()
 
-        expect(playlist.queue).toEqual([mockTrack2])
+        // 1 should be moved to previous, 2 should be prepended to the queue
+        // before 3
+        expect(playlist.queue).toEqual([mockTrack2, mockTrack3])
         expect(playlist.previous).toEqual([mockTrack1])
         expect(playlist.priority).toEqual([])
         expect(result).toEqual({
-            justEnded: { track: mockTrack1, singleUse: false },
-            nextTrack: { track: mockTrack2, singleUse: true }
+            justEnded: mockTrack1,
+            nextTrack: mockTrack2
         })
     })
 
     it('next plays queue track if no priority tracks', () => {
-        const queue: Track[] = [mockTrack1]
+        const queue: Track[] = [mockTrack1, mockTrack2, mockTrack3]
         const previous: Track[] = []
         const priority: Track[] = []
         const playlist = new Playlist(queue, previous, priority)
 
         const result = playlist.next()
 
-        expect(playlist.queue).toEqual([])
+        expect(playlist.queue).toEqual([mockTrack2, mockTrack3])
         expect(playlist.previous).toEqual([mockTrack1])
         expect(playlist.priority).toEqual([])
         expect(result).toEqual({
-            justEnded: { track: mockTrack1, singleUse: false },
-            nextTrack: undefined
+            justEnded: mockTrack1,
+            nextTrack: mockTrack2
         })
     })
 

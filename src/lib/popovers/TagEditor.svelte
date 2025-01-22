@@ -1,31 +1,60 @@
 <script lang="ts">
-    import { TrackSet } from '$lib/state.svelte'
+    import { TagGroupSet, TagSet, TrackSet } from '$lib/state.svelte'
     import { appTags, TAGS_FILENAME, TAGS_SETTING } from '$lib/stores.svelte'
-    import type { CachedTrack, Tag } from '$lib/types'
+    import { DEFAULT_GROUP, type CachedTrack, type Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
-    import { Modal } from '@skeletonlabs/skeleton-svelte'
+    import { Modal, type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
-    import { load } from '@tauri-apps/plugin-store'
-    import { Tag as TagIcon, XCircle } from 'lucide-svelte'
-    import { onDestroy, onMount } from 'svelte'
+    import { load, Store } from '@tauri-apps/plugin-store'
+    import { PenBox, Plus, Save, Tag as TagIcon } from 'lucide-svelte'
+    import { getContext, onDestroy, onMount } from 'svelte'
+    import GroupDeleteConfirmation from './tag-editor-components/GroupDeleteConfirmation.svelte'
+    import TagWithDelete from './tag-editor-components/TagWithDelete.svelte'
 
     interface Props {
         track: CachedTrack
         open: boolean
+        handleTagEdit?: (tag: Tag, outcome: 'add' | 'remove') => void
     }
-    let { track, open = $bindable() }: Props = $props()
+    let { track, open = $bindable(), handleTagEdit }: Props = $props()
 
     let trackTags = $state(appTags.getByTrack(track))
-    let availableTags = $derived(appTags.difference(trackTags))
+    let filteredGroups = $derived.by(() => {
+        const filtered = appTags.groups.map((g) => {
+            return {
+                name: g.name,
+                tagSet: g.tagSet.difference(trackTags)
+            }
+        })
+        return new TagGroupSet(filtered)
+    })
 
-    let removeTagModalState = $state(false)
-
-    let draggingTag: string | null = $state(null)
+    let draggingTag: Tag | null = $state(null)
     const dragHoverClass = 'preset-outlined-surface-400-600'
 
-    function handleDragStart(event: DragEvent, tag: string) {
+    let removeGroupModal: boolean = $state(false)
+    let removeTagModalState = $state(false)
+    let editingGroupName: string | null = $state(null)
+    let editingGroupString: string = $state('')
+    let editingTagName: string | null = $state(null)
+    let editingTagString: string = $state('')
+    $effect(() => {
+        if (open === false) {
+            removeGroupModal = false
+            removeTagModalState = false
+            editingGroupName = null
+            editingTagName = null
+            editingTagString = ''
+        }
+    })
+
+    const toast: ToastContext = getContext('toast')
+    let store: Store
+
+    function handleDragStart(event: DragEvent, tag: Tag) {
         draggingTag = tag
-        event.dataTransfer?.setData('text/plain', tag)
+        // Necessary to start the drag-and-drop transfer, even if we don't use it
+        event.dataTransfer?.setData('text/plain', tag.value)
     }
 
     function handleDragOver(event: DragEvent) {
@@ -39,55 +68,34 @@
         target.classList.remove(dragHoverClass)
     }
 
-    async function handleDrop(event: DragEvent, outcome: 'add' | 'remove') {
-        event.preventDefault()
-        const target = event.currentTarget as HTMLElement
-        target.classList.remove(dragHoverClass)
-
+    async function handleDrop(newGroup: string) {
         if (draggingTag) {
-            const tag: Tag = {
-                value: draggingTag,
-                owners: new TrackSet([track])
-            }
-
-            // Update both the local tags and the global ones
-            if (outcome === 'add') {
-                appTags.addOwners(tag)
-                trackTags.add(tag)
-            } else if (outcome === 'remove') {
-                appTags.deleteOwners(tag)
-                trackTags.delete(tag)
-            }
-
-            const store = await load(TAGS_FILENAME)
+            appTags.moveTag(newGroup, draggingTag)
+            draggingTag = null
             await store.set(TAGS_SETTING, appTags)
         }
-        draggingTag = null
     }
 
-    async function handleTextInput(
-        e: KeyboardEvent & {
-            currentTarget: EventTarget & HTMLInputElement
-        }
-    ) {
-        if (e.code === 'Enter') {
-            const newTag: Tag = {
-                value: e.currentTarget.value,
-                owners: new TrackSet([track])
-            }
-            appTags.add(newTag)
-            trackTags.add(newTag)
-            e.currentTarget.value = ''
+    async function addRemoveTag(tag: Tag, mode: 'add' | 'remove') {
+        tag.owners.add(track)
 
-            const store = await load(TAGS_FILENAME)
-            await store.set(TAGS_SETTING, appTags)
+        // Update both the local tags and the global ones
+        if (mode === 'add') {
+            appTags.addTagOwners(tag.group ?? DEFAULT_GROUP, tag)
+            trackTags.add(tag)
+            if (handleTagEdit) handleTagEdit(tag, 'add')
+        } else if (mode === 'remove') {
+            appTags.deleteTagOwners(tag.group ?? DEFAULT_GROUP, tag)
+            trackTags.delete(tag)
+            if (handleTagEdit) handleTagEdit(tag, 'remove')
         }
+
+        await store.set(TAGS_SETTING, appTags)
     }
 
     async function deleteTag(tag: Tag) {
-        appTags.delete(tag)
-
-        const store = await load(TAGS_FILENAME)
+        appTags.deleteTag(tag.group ?? DEFAULT_GROUP, tag)
+        if (handleTagEdit) handleTagEdit(tag, 'remove')
         await store.set(TAGS_SETTING, appTags)
 
         // Emit an event to be caught by other TagEditors so that they can
@@ -95,8 +103,69 @@
         await emit('deleted-tag', tag)
     }
 
+    async function addNewTagGroup() {
+        const existingGroupNames = appTags.groups.map((g) => g.name)
+        let newId = 1
+        let groupName = `New Group ${newId}`
+
+        while (existingGroupNames.includes(groupName)) {
+            newId += 1
+            groupName = `New Group ${newId}`
+        }
+
+        const newGroup = { name: groupName, tagSet: new TagSet([]) }
+        appTags.add(newGroup)
+        await store.set(TAGS_SETTING, appTags)
+    }
+
+    async function deleteTagGroup(groupName: string) {
+        if (groupName !== DEFAULT_GROUP) {
+            for (const tag of appTags.get(groupName)?.tagSet ?? []) {
+                if (handleTagEdit) handleTagEdit(tag, 'remove')
+            }
+            appTags.delete(groupName)
+            await store.set(TAGS_SETTING, appTags)
+        }
+    }
+
+    function renameTagGroup(oldName: string, newName: string) {
+        const okay = appTags.rename(oldName, newName)
+        if (!okay) {
+            toast.create({
+                title: 'Error',
+                description: `There is already a group called ${newName}.`,
+                type: 'error'
+            })
+        }
+
+        editingGroupName = null
+    }
+
+    function addTagFromText(
+        e: KeyboardEvent & {
+            currentTarget: EventTarget & HTMLInputElement
+        },
+        groupName: string
+    ) {
+        if (e.code === 'Enter') {
+            if (editingTagString.length > 0) {
+                const newTag: Tag = {
+                    value: editingTagString,
+                    owners: new TrackSet([]),
+                    group: groupName
+                }
+                appTags.addTag(groupName, newTag)
+            }
+
+            editingTagName = null
+            editingTagString = ''
+        }
+    }
+
     let unlisten: UnlistenFn | undefined
     onMount(async () => {
+        store = await load(TAGS_FILENAME)
+
         unlisten = await listen<Tag>('deleted-tag', (ev) => {
             trackTags.delete(ev.payload)
         })
@@ -110,7 +179,7 @@
 <Modal
     bind:open
     classes="absolute"
-    contentClasses="preset-filled-surface-100-900 shadow-2xl p-4 w-1/3 h-1/2 space-y-2 overflow-auto select-none"
+    contentClasses="preset-filled-surface-100-900 shadow-2xl p-4 w-1/3 h-3/4 space-y-2 overflow-auto select-none flex flex-col"
 >
     {#snippet content()}
         <div class="flex gap-3">
@@ -118,87 +187,129 @@
             <header class="type-scale-6"><b>Tag editor</b></header>
         </div>
         <hr class="hr" />
+
         <p>On this track</p>
         <div
             class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
-            ondragover={handleDragOver}
-            ondragleave={handleDragLeave}
-            ondrop={(e) => handleDrop(e, 'add')}
             role="listbox"
             tabindex="0"
         >
-            {#each trackTags as tag}
-                <TagChip
-                    draggable={true}
-                    ondragstart={(e) => handleDragStart(e, tag.value)}
-                    {tag}
-                />
+            {#each trackTags.sorted() as tag}
+                <div role="listitem">
+                    <TagChip
+                        {tag}
+                        onclick={() => addRemoveTag(tag, 'remove')}
+                    />
+                </div>
             {:else}
-                <span class="opacity-40">Drag-and-drop your tags here...</span>
+                <span class="opacity-40">Selected tags will be here</span>
             {/each}
         </div>
-        <p>Add new tags</p>
-        <input
-            class="input rounded-md"
-            type="text"
-            name="add-tags"
-            placeholder="Write new tags here..."
-            onkeypress={handleTextInput}
-        />
-        <p>Available</p>
-        <div
-            class="preset-outlined-surface-200-800 p-2 rounded-md flex flex-wrap gap-1 min-h-10"
-            ondragover={handleDragOver}
-            ondragleave={handleDragLeave}
-            ondrop={(e) => handleDrop(e, 'remove')}
-            role="listbox"
-            tabindex="0"
-        >
-            {#each availableTags as tag}
-                <TagChip
-                    draggable={true}
-                    ondragstart={(e) => handleDragStart(e, tag.value)}
-                    {tag}
-                >
-                    {#snippet removeBtn()}
-                        <Modal
-                            bind:open={removeTagModalState}
-                            triggerClasses="mr-1 mt-1"
-                            contentBackground="bg-surface-100-900"
-                            contentClasses="shadow-xl border-2 border-error-100-900 p-4 flex flex-col gap-2"
+
+        {#each filteredGroups as group (group)}
+            {#if group.name !== DEFAULT_GROUP}
+                <div class="flex gap-2">
+                    {#if editingGroupName !== group.name}
+                        <button
+                            onclick={() => {
+                                editingGroupName = group.name
+                                editingGroupString = group.name
+                            }}
                         >
-                            {#snippet trigger()}
-                                <XCircle size="16" />
-                            {/snippet}
-                            {#snippet content()}
-                                <p>
-                                    This will delete the tag from all tracks
-                                    that have it. <b
-                                        >This action is irreversible.</b
-                                    >
-                                </p>
-                                <footer class="self-end">
-                                    <button
-                                        class="btn preset-tonal"
-                                        onclick={() => {
-                                            removeTagModalState = false
-                                        }}>Cancel</button
-                                    >
-                                    <button
-                                        class="btn preset-tonal-error"
-                                        onclick={() => {
-                                            deleteTag(tag)
-                                            removeTagModalState = false
-                                        }}>Delete</button
-                                    >
-                                </footer>
-                            {/snippet}
-                        </Modal>
-                    {/snippet}
-                </TagChip>
+                            <PenBox
+                                class="self-center opacity-50 hover:opacity-100"
+                                size="18"
+                            />
+                        </button>
+                        <p>{group.name}</p>
+                    {:else}
+                        <button
+                            onclick={() =>
+                                renameTagGroup(group.name, editingGroupString)}
+                        >
+                            <Save
+                                class="self-center opacity-50 hover:opacity-100"
+                                size="18"
+                            />
+                        </button>
+                        <input
+                            type="text"
+                            name="group-name"
+                            class="input h-6 self-center"
+                            bind:value={editingGroupString}
+                            onkeydown={(e) => {
+                                if (e.code === 'Enter') {
+                                    renameTagGroup(
+                                        group.name,
+                                        editingGroupString
+                                    )
+                                }
+                            }}
+                        />
+                    {/if}
+                </div>
             {:else}
-                <span class="opacity-40">Create new tags in the box above</span>
-            {/each}
-        </div>
+                <p>{group.name}</p>
+            {/if}
+
+            <div
+                class="preset-outlined-surface-200-800 p-2 rounded-md flex min-h-10"
+                ondragover={handleDragOver}
+                ondragleave={handleDragLeave}
+                ondrop={(_e) => handleDrop(group.name)}
+                role="listbox"
+                tabindex="0"
+            >
+                <button
+                    class="self-center mr-2 opacity-50 hover:opacity-100"
+                    onclick={() => (editingTagName = group.name)}
+                >
+                    <Plus />
+                </button>
+                {#if editingTagName === group.name}
+                    <input
+                        type="text"
+                        name="group-name"
+                        class="input w-24 h-6 mr-2 self-center"
+                        placeholder="New tag"
+                        bind:value={editingTagString}
+                        onkeydown={(e) => addTagFromText(e, group.name)}
+                    />
+                {/if}
+                <div class="grow flex flex-wrap gap-1">
+                    {#each group.tagSet.sorted() as tag}
+                        <TagWithDelete
+                            {tag}
+                            open={removeTagModalState}
+                            draggable={filteredGroups.size > 1}
+                            {handleDragStart}
+                            {addRemoveTag}
+                            {deleteTag}
+                        />
+                    {:else}
+                        <p class="opacity-40 self-center">
+                            {#if group.name === DEFAULT_GROUP}
+                                Click on the + to add tags
+                            {:else}
+                                Drag tags to change their group
+                            {/if}
+                        </p>
+                    {/each}
+                </div>
+
+                {#if group.name !== DEFAULT_GROUP}
+                    <GroupDeleteConfirmation
+                        open={removeGroupModal}
+                        {deleteTagGroup}
+                        groupName={group.name}
+                    />
+                {/if}
+            </div>
+        {/each}
+
+        <button
+            class="btn preset-tonal flex gap-2 rounded-md self-center"
+            onclick={addNewTagGroup}><Plus />Add new group</button
+        >
     {/snippet}
 </Modal>
