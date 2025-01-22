@@ -35,8 +35,10 @@ export const MUTE_SETTING = 'mute'
 export const SHUFFLE_SETTING = 'shuffle'
 export const LOOP_SETTING = 'loop'
 
+export const DARK_MODE = 'dark-mode'
 export const SHOW_COVERS_SETTING = 'show-covers'
 export const AUTOHIDE_SIDEBARS_SETTING = 'autohide-sidebars'
+export const HIDE_OST = 'hide-ost'
 export const SHOW_ALBUM_TAGS = 'show-album-tags'
 export const SHOW_ARTIST_TAGS = 'show-artist-tags'
 
@@ -104,17 +106,24 @@ export const appState: AppState = $state({
 export const appTags = new TagGroupSet([])
 
 export type Settings = {
+    darkMode: boolean
     showCovers: boolean
     autoconnect: boolean
     autohideSidebars: boolean
+    hideOst: boolean
     showAlbumTags: boolean
     showArtistTags: boolean
 }
 
+/**
+ * The settings for Bardic Lore. Initialize these in `layout.ts`.
+ */
 export const settings: Settings = $state({
+    darkMode: true,
     showCovers: true,
     autoconnect: false,
     autohideSidebars: true,
+    hideOst: true,
     showAlbumTags: false,
     showArtistTags: false
 })

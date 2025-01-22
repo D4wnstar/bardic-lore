@@ -49,7 +49,16 @@
 
         tracks = cachedTracks
             .map((track) => {
+                if (settings.hideOst && track.album) {
+                    track.album = track.album
+                        .replace(/:? *\(?Complete[^:()]*?Soundtrack\)?/i, '')
+                        .replace(/:? *\(?Deluxe[^:()]*?Soundtrack\)?/i, '')
+                        .replace(/:? *\(?Original[^:()]*?Score\)?/i, '')
+                        .replace(/:? *\(?Original[^:()]*?Soundtrack\)?/i, '')
+                }
+
                 if (settings.showAlbumTags && track.album) {
+                    console.log('Hi')
                     const newTag = {
                         value: track.album,
                         owners: new TrackSet([track])

@@ -142,7 +142,7 @@
         >
             {track.title}
         </h3>
-        <p class="opacity-60 cursor-pointer">{track.album}</p>
+        <p class="opacity-60 cursor-pointer line-clamp-3">{track.album}</p>
         <div class="mt-2 flex flex-wrap justify-center gap-1">
             {#each tags
                 .sorted()

@@ -12,6 +12,8 @@ export default {
         contentPath(import.meta.url, 'svelte')
     ],
 
+    darkMode: 'selector',
+
     theme: {
         extend: {}
     },

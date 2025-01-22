@@ -13,7 +13,9 @@ import {
     TAGS_SETTING,
     AUTOHIDE_SIDEBARS_SETTING,
     SHOW_ALBUM_TAGS,
-    SHOW_ARTIST_TAGS
+    SHOW_ARTIST_TAGS,
+    HIDE_OST,
+    DARK_MODE
 } from '$lib/stores.svelte'
 import { load as tauriLoad } from '@tauri-apps/plugin-store'
 import type { LayoutLoad } from './$types'
@@ -67,10 +69,19 @@ export const load = (async () => {
     settings.autohideSidebars =
         (await settingsStore.get(AUTOHIDE_SIDEBARS_SETTING)) ??
         settings.autohideSidebars
+    settings.hideOst = (await settingsStore.get(HIDE_OST)) ?? settings.hideOst
     settings.showAlbumTags =
         (await settingsStore.get(SHOW_ALBUM_TAGS)) ?? settings.showAlbumTags
     settings.showArtistTags =
         (await settingsStore.get(SHOW_ARTIST_TAGS)) ?? settings.showArtistTags
+    settings.darkMode =
+        (await settingsStore.get(DARK_MODE)) ?? settings.darkMode
+
+    if (settings.darkMode) {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
 
     // Tags
     const cachedGroups = (await tagsStore.get<TagGroup[]>(TAGS_SETTING)) ?? []

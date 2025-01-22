@@ -236,11 +236,11 @@ pub async fn update_tracks_from_sources(
         let store = app.store(TRACKS_FILENAME)?;
         store.set(TRACKS_SETTING, serde_json::to_value(tracks_to_add.clone())?);
         store.save()?;
-        drop(on_get_track.send(TrackPacket::Refresh()));
     } else {
         add_tracks_to_store(&app, tracks_to_add.clone())?;
         remove_tracks_from_store(&app, tracks_to_remove.clone())?;
     }
+    drop(on_get_track.send(TrackPacket::Refresh()));
 
     return Ok(());
 }

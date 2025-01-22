@@ -2,6 +2,8 @@
     import {
         AUTOCONNECT_SETTING,
         AUTOHIDE_SIDEBARS_SETTING,
+        DARK_MODE,
+        HIDE_OST,
         settings,
         SETTINGS_FILENAME,
         SHOW_ALBUM_TAGS,
@@ -20,6 +22,16 @@
     let { getCachedTracks }: Props = $props()
     let store: Store
 
+    async function darkMode(newState: boolean) {
+        if (newState) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+
+        store.set(DARK_MODE, newState)
+    }
+
     async function showCovers(newState: boolean) {
         store.set(SHOW_COVERS_SETTING, newState)
         // Send an event to tell SongBoxes to reload their cover
@@ -32,6 +44,11 @@
 
     async function autohideSidebars(newState: boolean) {
         store.set(AUTOHIDE_SIDEBARS_SETTING, newState)
+    }
+
+    async function hideOst(newState: boolean) {
+        store.set(HIDE_OST, newState)
+        await getCachedTracks()
     }
 
     async function showAlbumTags(newState: boolean) {
@@ -58,6 +75,13 @@
             <header class="type-scale-4">Appearance</header>
             <hr class="hr" />
             <SwitchSetting
+                name="Light/dark mode"
+                description="Switch between light and dark modes."
+                switchName="dark-mode"
+                bind:checked={settings.darkMode}
+                onCheckedChange={darkMode}
+            />
+            <SwitchSetting
                 name="Show cover images"
                 description="If on, embedded covers will be shown behind the tracks. May reduce peformance."
                 switchName="show-cover-images"
@@ -70,6 +94,13 @@
                 switchName="autohide-sidebars"
                 bind:checked={settings.autohideSidebars}
                 onCheckedChange={autohideSidebars}
+            />
+            <SwitchSetting
+                name="Hide 'Original Soundtrack'"
+                description="If on, 'Original Soundtrack' and similar expressions in albums will be hidden."
+                switchName="hide-ost"
+                bind:checked={settings.hideOst}
+                onCheckedChange={hideOst}
             />
         </section>
         <section class="space-y-4">
@@ -88,14 +119,14 @@
             <hr class="hr" />
             <SwitchSetting
                 name="Show album tags"
-                description="If on, the album tag group will be shown."
+                description="If on, albums become selectable tags."
                 switchName="album-tags"
                 bind:checked={settings.showAlbumTags}
                 onCheckedChange={showAlbumTags}
             />
             <SwitchSetting
                 name="Show artist tags"
-                description="If on, the artist tag group will be shown."
+                description="If on, shows artists become selectable tags."
                 switchName="artist-tags"
                 bind:checked={settings.showArtistTags}
                 onCheckedChange={showArtistTags}
