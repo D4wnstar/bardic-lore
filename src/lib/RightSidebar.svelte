@@ -1,22 +1,24 @@
 <script lang="ts">
     import { ListMusic, PanelLeftOpen, PlaySquare } from 'lucide-svelte'
     import Queue from './right-sidebar-tabs/Queue.svelte'
-    import { fade, slide } from 'svelte/transition'
+    import { fade } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
     import CurrentlyPlaying from './right-sidebar-tabs/CurrentlyPlaying.svelte'
     import { onMount } from 'svelte'
     import { settings } from './stores.svelte'
+    import ButtonWithTooltip from './popovers/ButtonWithTooltip.svelte'
 
-    let visible = $state(true)
+    let sidebarVisible = $state(true)
     let tabIndex = $state(1)
 
     let minWidth = $state(300)
+    let tooltipOpen: boolean[] = $state([false, false, false])
 
     let id: number
     function openCloseSidebar() {
-        visible = !visible
+        sidebarVisible = !sidebarVisible
         id = setInterval(() => {
-            if (!visible) {
+            if (!sidebarVisible) {
                 minWidth -= 35
             } else {
                 minWidth += 35
@@ -40,7 +42,7 @@
             if (
                 previousWidth > 900 &&
                 window.innerWidth < 900 &&
-                visible &&
+                sidebarVisible &&
                 settings.autohideSidebars
             ) {
                 openCloseSidebar()
@@ -48,7 +50,7 @@
             if (
                 previousWidth < 900 &&
                 window.innerWidth > 900 &&
-                !visible &&
+                !sidebarVisible &&
                 settings.autohideSidebars
             ) {
                 openCloseSidebar()
@@ -63,30 +65,39 @@
     style={`min-width: ${minWidth}px`}
 >
     <div class="flex gap-1 min-h-12 self-end">
-        {#if visible}
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 1 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 1)}
-                transition:slide={{ axis: 'x', duration: 100 }}
-                ><ListMusic /></button
+        {#if sidebarVisible}
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[0]}
+                tooltip="Queue"
+                classes={tabIndex === 1
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 1)}><ListMusic /></ButtonWithTooltip
             >
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 2 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 2)}
-                transition:slide={{ axis: 'x', duration: 100 }}
-                ><PlaySquare /></button
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[1]}
+                tooltip="Currently Playing"
+                classes={tabIndex === 2
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 2)}><PlaySquare /></ButtonWithTooltip
             >
         {/if}
-        <button
-            class="btn-icon rounded-none hover:preset-filled-surface-500"
-            onclick={openCloseSidebar}><PanelLeftOpen /></button
+        <ButtonWithTooltip
+            bind:open={tooltipOpen[2]}
+            tooltip={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+            classes="hover:preset-filled-surface-500"
+            onclick={openCloseSidebar}><PanelLeftOpen /></ButtonWithTooltip
         >
     </div>
 
-    {#if visible}
+    {#if sidebarVisible}
         <div
             class="overflow-auto"
-            transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}
+            transition:fade={{
+                duration: sidebarVisible ? 200 : 10,
+                easing: expoIn
+            }}
         >
             {#if tabIndex === 1}
                 <Queue />

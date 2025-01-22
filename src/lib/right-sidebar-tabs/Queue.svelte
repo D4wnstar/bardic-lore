@@ -13,7 +13,7 @@
 
     let maxTracksShown = 20
 
-    let iconColor = rgbToHex(
+    const iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
     )
 </script>
@@ -46,7 +46,7 @@
                             <QueuedTrack track={queued[0]} />
                         </div>
                     {/key}
-                {:else if priority.length === 0}
+                {:else if appState.playlist.isEmpty()}
                     <div
                         class="flex flex-col gap-2"
                         in:fade={{ delay: 200, duration: 500 }}

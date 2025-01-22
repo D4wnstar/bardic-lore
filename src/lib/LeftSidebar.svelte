@@ -4,12 +4,13 @@
     import AudioSources from '$lib/left-sidebar-tabs/AudioSources.svelte'
     import BotControls from './left-sidebar-tabs/BotControls.svelte'
     import AppSettings from './left-sidebar-tabs/AppSettings.svelte'
-    import { fade, slide } from 'svelte/transition'
+    import { fade } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
     import { onMount } from 'svelte'
     import type { CachedTrack } from './types'
     import { settings } from './stores.svelte'
     import { TagSet } from './state.svelte'
+    import ButtonWithTooltip from './popovers/ButtonWithTooltip.svelte'
 
     interface Props {
         addTrack: (track: CachedTrack) => void
@@ -29,16 +30,17 @@
         tagsMode = $bindable('all')
     }: Props = $props()
 
-    let visible: boolean = $state(true)
+    let sidebarVisible: boolean = $state(true)
     let tabIndex: number = $state(1)
+    let tooltipOpen: boolean[] = $state([false, false, false, false, false])
 
     let minWidth = $state(300)
 
     let id: number[] = []
     function openCloseSidebar() {
-        visible = !visible
+        sidebarVisible = !sidebarVisible
         const newId = setInterval(() => {
-            if (!visible) {
+            if (!sidebarVisible) {
                 minWidth -= 35
             } else {
                 minWidth += 35
@@ -63,7 +65,7 @@
             if (
                 previousWidth > 1024 &&
                 window.innerWidth < 1024 &&
-                visible &&
+                sidebarVisible &&
                 settings.autohideSidebars
             ) {
                 openCloseSidebar()
@@ -71,7 +73,7 @@
             if (
                 previousWidth < 1024 &&
                 window.innerWidth > 1024 &&
-                !visible &&
+                !sidebarVisible &&
                 settings.autohideSidebars
             ) {
                 openCloseSidebar()
@@ -86,41 +88,56 @@
     style={`min-width: ${minWidth}px`}
 >
     <div class="flex w-full gap-1 pb-2">
-        <button
-            class="btn-icon rounded-none hover:preset-filled-surface-500"
-            onclick={openCloseSidebar}><PanelRightOpen /></button
+        <ButtonWithTooltip
+            bind:open={tooltipOpen[0]}
+            tooltip={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+            classes="hover:preset-filled-surface-500"
+            onclick={openCloseSidebar}><PanelRightOpen /></ButtonWithTooltip
         >
-        {#if visible}
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 1 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 1)}
-                transition:slide={{ axis: 'x', duration: 100 }}><Tag /></button
+        {#if sidebarVisible}
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[1]}
+                tooltip="Tags"
+                classes={tabIndex === 1
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 1)}><Tag /></ButtonWithTooltip
             >
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 2 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 2)}
-                transition:slide={{ axis: 'x', duration: 100 }}
-                ><Folder /></button
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[2]}
+                tooltip="Audio Sources"
+                classes={tabIndex === 2
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 2)}><Folder /></ButtonWithTooltip
             >
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 3 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 3)}
-                transition:slide={{ axis: 'x', duration: 100 }}><Bot /></button
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[3]}
+                tooltip="Bot Controls"
+                classes={tabIndex === 3
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 3)}><Bot /></ButtonWithTooltip
             >
-            <button
-                class={`btn-icon rounded-none ${tabIndex === 4 ? 'preset-filled-primary-500' : 'hover:preset-filled-primary-500'}`}
-                onclick={() => (tabIndex = 4)}
-                transition:slide={{ axis: 'x', duration: 100 }}
-                ><Settings /></button
+            <ButtonWithTooltip
+                bind:open={tooltipOpen[4]}
+                tooltip="App Settings"
+                classes={tabIndex === 4
+                    ? 'preset-filled-primary-500'
+                    : 'hover:preset-filled-primary-500'}
+                onclick={() => (tabIndex = 4)}><Settings /></ButtonWithTooltip
             >
         {/if}
     </div>
     <hr class="hr pb-2" />
 
-    {#if visible}
+    {#if sidebarVisible}
         <div
             class="overflow-x-auto"
-            transition:fade={{ duration: visible ? 200 : 10, easing: expoIn }}
+            transition:fade={{
+                duration: sidebarVisible ? 200 : 10,
+                easing: expoIn
+            }}
         >
             {#if tabIndex === 1}
                 <Tags bind:selectedTags bind:tagsMode {filterTracks} />
