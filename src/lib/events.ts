@@ -54,6 +54,10 @@ export const MUTE_UNMUTE = 'mute-unmute'
 
 /* FROM BOT TO UI */
 /**
+ * This event indicates that the client succesfully connected to Discord.
+ */
+export const CLIENT_CONNECTED = 'client-connected'
+/**
  * This event indicates that there was an error in a bot command. It is
  * generic and applies for any error related to the serenity client.
  * The payload should contain more information.

@@ -11,7 +11,7 @@
     let queued = $derived(appState.playlist.queued().queued)
     let priority = $derived(appState.playlist.queued().priority)
 
-    let maxTracksShown = 20
+    const maxTracksShown = 20
 
     const iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
@@ -39,7 +39,7 @@
                         class="pl-1 type-scale-3"
                         transition:fade={{ duration: 200 }}
                     >
-                        <strong>You are listening to</strong>
+                        <b>You are listening to</b>
                     </p>
                     {#key queued[0]}
                         <div in:fade={{ duration: 200 }}>
@@ -68,7 +68,7 @@
                         class="pl-1 type-scale-3 pt-4"
                         transition:fade={{ duration: 200 }}
                     >
-                        <strong>Up next</strong>
+                        <b>Up next</b>
                     </p>
                 {/if}
                 {#each priority as track (track)}
@@ -82,7 +82,7 @@
                         class="pl-1 type-scale-3 pt-4"
                         transition:fade={{ duration: 200 }}
                     >
-                        <strong>Up next from the playlist</strong>
+                        <b>Up next from the playlist</b>
                     </p>
                 {/if}
                 {#each queued.slice(1, maxTracksShown) as track (track)}

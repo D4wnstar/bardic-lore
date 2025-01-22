@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use serenity::{
-    all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId},
+    all::{ChannelId, ChannelType, Context, EventHandler, GatewayIntents, Guild, GuildId, Ready},
     async_trait,
     prelude::TypeMapKey,
 };
@@ -24,10 +24,11 @@ use uuid::Uuid;
 use crate::{
     events::{
         CreatePlaylistPayload, GuildChannelIdPayload, GuildIdPayload, PlayParallelPayload,
-        QueueMethod, QueueTrackPayload, TrackActionPayload, ADD_TRACK, BOT_ERROR, CREATE_PLAYLIST,
-        JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL, MUTE_UNMUTE, PLAYLIST_CREATED,
-        PLAY_PARALLEL, QUEUE_EMPTIED, QUEUE_SORTED, QUEUE_TRACK, TRACK_ENDED, TRACK_LOOPED,
-        TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER, UPDATE_TRACKS,
+        QueueMethod, QueueTrackPayload, TrackActionPayload, ADD_TRACK, BOT_ERROR, CLIENT_CONNECTED,
+        CREATE_PLAYLIST, JOIN_VOICE_CHANNEL, LEAVE_VOICE_CHANNEL, LEFT_VOICE_CHANNEL, MUTE_UNMUTE,
+        PLAYLIST_CREATED, PLAY_PARALLEL, QUEUE_EMPTIED, QUEUE_SORTED, QUEUE_TRACK, TRACK_ENDED,
+        TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
+        UPDATE_TRACKS,
     },
     parallel::ParallelTracks,
     queue::TrackQueue,
@@ -82,6 +83,14 @@ pub struct Handler {
 
 #[async_trait]
 impl EventHandler for Handler {
+    async fn ready(&self, _ctx: Context, _ready: Ready) {
+        self.app.emit(CLIENT_CONNECTED, ()).unwrap();
+
+        let client_exists_mutex = self.app.state::<AsyncMutex<IsSerenityClientOn>>();
+        let mut client_exists = client_exists_mutex.lock().await;
+        client_exists.0 = true;
+    }
+
     async fn cache_ready(&self, ctx: Context, _guilds: Vec<GuildId>) {
         // serenity has no API to tell the bot to do something from code,
         // it can only handle Gateway events sent by Discord, such as chat messages
@@ -205,7 +214,7 @@ impl EventHandler for Handler {
 #[tauri::command]
 pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
     let client_exists_mutex = app.state::<AsyncMutex<IsSerenityClientOn>>();
-    let mut client_exists = client_exists_mutex.lock().await;
+    let client_exists = client_exists_mutex.lock().await;
     if client_exists.0 {
         return Err(Error::SerenityClientAlreadyExists());
     }
@@ -221,13 +230,16 @@ pub async fn create_discord_client(app: AppHandle) -> Result<(), Error> {
         .register_songbird()
         .await?;
 
+    let async_app = app.clone();
     tokio::spawn(async move {
         if let Err(why) = ds_client.start().await {
-            println!("Client error: {why:?}");
+            print_emit_error(
+                BOT_ERROR,
+                &format!("Failed to connect to Discord. Error: {why}"),
+                &async_app,
+            );
         }
     });
-
-    client_exists.0 = true;
 
     return Ok(());
 }

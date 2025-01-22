@@ -70,28 +70,21 @@ export async function getCover(kind: 'cover' | 'thumbnail', hash?: string) {
 export async function createDiscordClient(toast: ToastContext) {
     // Make sure to not attempt to create a second client
     let botConnected = await invoke<boolean>('is_bot_connected')
-    if (botConnected) return true
-
-    await invoke('create_discord_client')
-        .then(() => {
-            botConnected = true
-
-            toast.create({
-                title: 'Created client',
-                description:
-                    'Successfully created client. Servers should refresh in a moment.',
-                type: 'success',
-                duration: 10000
-            })
+    if (botConnected) {
+        toast.create({
+            title: 'Already connected',
+            description: 'The bot is already connected',
+            type: 'info'
         })
-        .catch((err) => {
-            console.error(err)
-            toast.create({
-                title: 'Error',
-                description: err,
-                type: 'error'
-            })
-        })
+        return
+    }
 
-    return botConnected
+    await invoke('create_discord_client').catch((err) => {
+        console.error(err)
+        toast.create({
+            title: 'Error',
+            description: err,
+            type: 'error'
+        })
+    })
 }

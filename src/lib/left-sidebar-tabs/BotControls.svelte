@@ -14,6 +14,7 @@
     import type { GuildSlug, VoiceChannelSlug } from '$lib/types'
     import ServerBox from './ServerBox.svelte'
     import {
+        CLIENT_CONNECTED,
         JOIN_VOICE_CHANNEL,
         LEAVE_VOICE_CHANNEL,
         UPDATED_GUILDS
@@ -64,7 +65,7 @@
     }
 
     async function handleConnectClick() {
-        botConnected = await createDiscordClient(toast)
+        await createDiscordClient(toast)
     }
 
     async function handleChannelClick(
@@ -108,7 +109,7 @@
         await store.set(GUILDS_SETTING, guilds)
     }
 
-    let unlisten: UnlistenFn | undefined
+    let unlisten: UnlistenFn[] = []
     onMount(async () => {
         botConnected = await invoke<boolean>('is_bot_connected')
         refreshServers(false)
@@ -116,13 +117,19 @@
         const store = await load(SETTINGS_FILENAME, { autoSave: false })
         botToken = (await store.get(BOT_TOKEN_SETTING)) ?? ''
 
-        unlisten = await listen<undefined>(UPDATED_GUILDS, () =>
+        const unlisten1 = await listen<undefined>(UPDATED_GUILDS, () =>
             refreshServers(false)
         )
+        const unlisten2 = await listen<undefined>(CLIENT_CONNECTED, () => {
+            botConnected = true
+        })
+
+        unlisten.push(unlisten1)
+        unlisten.push(unlisten2)
     })
 
     onDestroy(() => {
-        if (unlisten) unlisten()
+        unlisten.forEach((fn) => fn())
     })
 </script>
 

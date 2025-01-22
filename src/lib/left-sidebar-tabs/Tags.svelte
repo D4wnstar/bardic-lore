@@ -4,6 +4,7 @@
     import { DEFAULT_GROUP, type Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { Search } from 'lucide-svelte'
+    import { untrack } from 'svelte'
     import { flip } from 'svelte/animate'
     import { quintOut } from 'svelte/easing'
     import { crossfade } from 'svelte/transition'
@@ -20,14 +21,27 @@
         filterTracks
     }: Props = $props()
 
+    let searchTerm = $state('')
     let filteredGroups = $derived.by(() => {
-        const filtered = appTags.groups.map((g) => {
-            return {
-                name: g.name,
-                tagSet: g.tagSet.difference(selectedTags)
-            }
-        })
-        return new TagGroupSet(filtered)
+        return new TagGroupSet(
+            appTags.groups.map((g) => {
+                // The untrack is to avoid the internal state of filter
+                // Derived should still run on these two variables
+                selectedTags
+                searchTerm
+                let set = untrack(() =>
+                    g.tagSet
+                        .difference(selectedTags)
+                        .filter((t) =>
+                            t.value.toLowerCase().includes(searchTerm)
+                        )
+                )
+                return {
+                    name: g.name,
+                    tagSet: set
+                }
+            })
+        )
     })
 
     function handleAvailableClick(tag: Tag) {
@@ -69,6 +83,7 @@
         <Search />
         <input
             type="search"
+            bind:value={searchTerm}
             class="h-12 w-full border-none bg-transparent focus:ring-0"
             placeholder="Search tags..."
         />

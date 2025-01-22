@@ -464,6 +464,17 @@ export class TagSet {
         return newSet
     }
 
+    filter(filterFn: (t: Tag) => boolean) {
+        const newSet = new TagSet([])
+        for (const tag of this.#tags) {
+            if (filterFn(tag)) {
+                newSet.add(tag)
+            }
+        }
+
+        return newSet
+    }
+
     get(tagText: string) {
         return this.#tags.find((t) => t.value === tagText)
     }

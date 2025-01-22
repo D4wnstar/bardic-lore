@@ -32,7 +32,7 @@
         </div>
     {/if}
     {#if appState.parallel.states.length > 0}
-        <div class="pl-1"><strong>Overlayed</strong></div>
+        <div class="pl-1"><b>Overlayed</b></div>
     {/if}
     {#each appState.parallel.states as state}
         <div transition:fade={{ duration: 100 }}>

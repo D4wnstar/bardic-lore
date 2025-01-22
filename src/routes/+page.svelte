@@ -19,7 +19,7 @@
     import { getContext, onDestroy, onMount } from 'svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { type UnlistenFn, listen } from '@tauri-apps/api/event'
-    import { BOT_ERROR } from '$lib/events'
+    import { BOT_ERROR, CLIENT_CONNECTED } from '$lib/events'
     import SearchBar from '$lib/SearchBar.svelte'
     import { Folder, Wind } from 'lucide-svelte'
     import { createDiscordClient, rgbToHex } from '$lib/utils/utils'
@@ -147,26 +147,38 @@
         }
     }
 
-    let unlisten: UnlistenFn
+    let unlisten: UnlistenFn[] = []
     onMount(async () => {
         const toast: ToastContext = getContext('toast')
         await getCachedTracks()
 
-        if (settings.autoconnect) {
-            await createDiscordClient(toast)
-        }
-
-        unlisten = await listen<string>(BOT_ERROR, (ev) => {
+        const unlisten1 = await listen<string>(BOT_ERROR, (ev) => {
             toast.create({
                 title: 'Error',
                 description: ev.payload,
                 type: 'error'
             })
         })
+
+        const unlisten2 = await listen<undefined>(CLIENT_CONNECTED, () => {
+            toast.create({
+                title: 'Created client',
+                description:
+                    'Successfully created client. Servers should refresh in a moment.',
+                type: 'success',
+                duration: 10000
+            })
+        })
+        unlisten.push(unlisten1)
+        unlisten.push(unlisten2)
+
+        if (settings.autoconnect) {
+            await createDiscordClient(toast)
+        }
     })
 
     onDestroy(() => {
-        if (unlisten) unlisten()
+        unlisten.forEach((fn) => fn())
     })
 </script>
 
