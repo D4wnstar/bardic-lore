@@ -40,6 +40,7 @@ use crate::{
 pub struct IsSerenityClientOn(pub bool);
 
 #[derive(Serialize, Deserialize, Debug, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 struct GuildSlug {
     id: GuildId,
     name: String,
@@ -53,6 +54,7 @@ impl PartialEq for GuildSlug {
 }
 
 #[derive(Serialize, Deserialize, Debug, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 struct VoiceChannelSlug {
     id: ChannelId,
     name: String,

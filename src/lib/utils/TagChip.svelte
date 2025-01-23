@@ -5,6 +5,7 @@
     interface Props {
         tag: Tag
         onclick?: () => Promise<void>
+        disabled?: boolean
         removeBtn?: Snippet<[Tag]>
         classes?: string
         preset?: string
@@ -13,9 +14,10 @@
     let {
         tag,
         onclick,
+        disabled,
         removeBtn,
         classes,
-        preset = 'preset-filled'
+        preset = 'preset-tonal'
     }: Props = $props()
 </script>
 
@@ -24,7 +26,7 @@
         {@render removeBtn(tag)}
     {/if}
     {#if onclick}
-        <button onclick={async (_e) => await onclick()}>
+        <button onclick={async (_e) => await onclick()} {disabled}>
             {tag.value}
         </button>
     {:else}

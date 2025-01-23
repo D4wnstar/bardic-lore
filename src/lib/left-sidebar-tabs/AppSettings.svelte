@@ -126,7 +126,7 @@
             />
             <SwitchSetting
                 name="Show artist tags"
-                description="If on, shows artists become selectable tags."
+                description="If on, artists become selectable tags."
                 switchName="artist-tags"
                 bind:checked={settings.showArtistTags}
                 onCheckedChange={showArtistTags}

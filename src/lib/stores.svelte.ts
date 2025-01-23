@@ -35,6 +35,8 @@ export const MUTE_SETTING = 'mute'
 export const SHUFFLE_SETTING = 'shuffle'
 export const LOOP_SETTING = 'loop'
 
+export const GROUP_ACCORDION_STATES = 'group-accordion-states'
+
 export const DARK_MODE = 'dark-mode'
 export const SHOW_COVERS_SETTING = 'show-covers'
 export const AUTOHIDE_SIDEBARS_SETTING = 'autohide-sidebars'

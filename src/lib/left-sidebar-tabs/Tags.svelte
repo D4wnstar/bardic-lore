@@ -1,13 +1,19 @@
 <script lang="ts">
     import { TagGroupSet, TagSet } from '$lib/state.svelte'
-    import { appTags } from '$lib/stores.svelte'
-    import { DEFAULT_GROUP, type Tag } from '$lib/types'
+    import {
+        appTags,
+        GROUP_ACCORDION_STATES,
+        SETTINGS_FILENAME
+    } from '$lib/stores.svelte'
+    import { type Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
-    import { Search } from 'lucide-svelte'
-    import { untrack } from 'svelte'
+    import { load } from '@tauri-apps/plugin-store'
+    import { ChevronDown, ChevronUp, Search } from 'lucide-svelte'
+    import { onMount, untrack } from 'svelte'
     import { flip } from 'svelte/animate'
     import { quintOut } from 'svelte/easing'
-    import { crossfade } from 'svelte/transition'
+    import { SvelteMap } from 'svelte/reactivity'
+    import { crossfade, slide } from 'svelte/transition'
 
     interface Props {
         selectedTags: TagSet
@@ -25,35 +31,44 @@
     let filteredGroups = $derived.by(() => {
         return new TagGroupSet(
             appTags.groups.map((g) => {
+                let set = g.tagSet.difference(selectedTags)
+
                 // The untrack is to avoid the internal state of filter
-                // Derived should still run on these two variables
-                selectedTags
+                // Derived should still run on the search
                 searchTerm
-                let set = untrack(() =>
-                    g.tagSet
-                        .difference(selectedTags)
-                        .filter((t) =>
-                            t.value.toLowerCase().includes(searchTerm)
-                        )
+                set = untrack(() =>
+                    set.filter((t) =>
+                        t.value.toLowerCase().includes(searchTerm)
+                    )
                 )
-                return {
-                    name: g.name,
-                    tagSet: set
-                }
+                return { ...g, tagSet: set }
             })
         )
     })
 
+    // svelte-ignore state_referenced_locally (It only needs to be initialized)
+    let groupsOpen: SvelteMap<string, boolean> = $state(
+        new SvelteMap(filteredGroups.groups.map((g) => [g.name, false]))
+    )
+
     function handleAvailableClick(tag: Tag) {
         selectedTags.add(tag)
-        filteredGroups.deleteTag(tag.group ?? DEFAULT_GROUP, tag)
+        filteredGroups.deleteTag(tag.group, tag)
         filterTracks()
     }
 
     function handleSelectedClick(tag: Tag) {
-        filteredGroups.addTag(tag.group ?? DEFAULT_GROUP, tag)
+        filteredGroups.addTag(tag.group, tag)
         selectedTags.delete(tag)
         filterTracks()
+    }
+
+    async function openCloseTagGroup(groupName: string) {
+        const currState = groupsOpen.get(groupName)
+        groupsOpen.set(groupName, !currState)
+
+        const store = await load(SETTINGS_FILENAME)
+        await store.set(GROUP_ACCORDION_STATES, groupsOpen)
     }
 
     const [send, receive] = crossfade({
@@ -71,6 +86,16 @@
 				opacity: ${t}
 			`
             }
+        }
+    })
+
+    onMount(async () => {
+        const store = await load(SETTINGS_FILENAME)
+        const maybeCachedStates = await store.get<Map<string, boolean>>(
+            GROUP_ACCORDION_STATES
+        )
+        if (maybeCachedStates) {
+            groupsOpen = new SvelteMap(Object.entries(maybeCachedStates))
         }
     })
 </script>
@@ -133,6 +158,7 @@
                             {tag}
                             classes="hover:opacity-70"
                             onclick={async () => handleSelectedClick(tag)}
+                            preset="preset-filled"
                         />
                     </div>
                 {:else}
@@ -153,27 +179,47 @@
                     >Add tags by right clicking on tracks</span
                 >
             {:else}
-                {#each filteredGroups.groups.filter((g) => g.tagSet.size > 0) as group (group)}
-                    <p class="pl-1 text-secondary-950-50">{group.name}</p>
-                    <div class="flex flex-wrap justify-stretch gap-1">
-                        {#each group.tagSet.sorted() as tag (tag)}
-                            <div
-                                in:receive={{ key: tag.value }}
-                                out:send={{ key: tag.value }}
-                                animate:flip={{ duration: 100 }}
-                            >
-                                <TagChip
-                                    {tag}
-                                    classes="hover:opacity-70"
-                                    onclick={async () =>
-                                        handleAvailableClick(tag)}
-                                    preset="preset-tonal"
-                                />
-                            </div>
+                {#each filteredGroups
+                    .sorted()
+                    .filter((g) => g.tagSet.size > 0) as group (group)}
+                    <button
+                        class="flex gap-1 pl-1 text-secondary-950-50"
+                        onclick={async () =>
+                            await openCloseTagGroup(group.name)}
+                    >
+                        {group.name}
+                        {#if groupsOpen.get(group.name) === true}
+                            <ChevronUp class="opacity-50" />
                         {:else}
-                            <p class="opacity-40 pl-1">This group is empty</p>
-                        {/each}
-                    </div>
+                            <ChevronDown class="opacity-50" />
+                        {/if}
+                    </button>
+
+                    {#if groupsOpen.get(group.name) === true}
+                        <div
+                            class="flex flex-wrap justify-stretch gap-1"
+                            transition:slide={{ axis: 'y' }}
+                        >
+                            {#each group.tagSet.sorted() as tag (tag)}
+                                <div
+                                    in:receive={{ key: tag.value }}
+                                    out:send={{ key: tag.value }}
+                                    animate:flip={{ duration: 100 }}
+                                >
+                                    <TagChip
+                                        {tag}
+                                        classes="hover:opacity-70"
+                                        onclick={async () =>
+                                            handleAvailableClick(tag)}
+                                    />
+                                </div>
+                            {:else}
+                                <p class="opacity-40 pl-1">
+                                    This group is empty
+                                </p>
+                            {/each}
+                        </div>
+                    {/if}
                 {/each}
             {/if}
         </div>

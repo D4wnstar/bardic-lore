@@ -27,7 +27,7 @@
     let localGuild: GuildSlug = $state({
         id: 0,
         name: 'Offline Player',
-        voice_channels: [{ id: 0, name: 'Offline', active: false }],
+        voiceChannels: [{ id: 0, name: 'Offline', active: false }],
         offline: true
     })
 
@@ -42,14 +42,14 @@
         // If no voice channel is active, activate the offline channel
         let localActiveState = true
         guilds.forEach((guild) =>
-            guild.voice_channels.forEach((vchan) => {
+            guild.voiceChannels.forEach((vchan) => {
                 if (vchan.active) {
                     localActiveState = false
                     return
                 }
             })
         )
-        localGuild.voice_channels[0].active = localActiveState
+        localGuild.voiceChannels[0].active = localActiveState
 
         if (makeToast) {
             toast.create({
@@ -65,6 +65,11 @@
     }
 
     async function handleConnectClick() {
+        toast.create({
+            description: 'Connecting to Discord...',
+            type: 'info'
+        })
+
         await createDiscordClient(toast)
     }
 
@@ -75,19 +80,19 @@
         if (guild.offline) {
             // Find the guild the bot is currently in by findind the active voice channel
             let activeGuild = guilds.find((guild) =>
-                guild.voice_channels.find((ch) => ch.active)
+                guild.voiceChannels.find((ch) => ch.active)
             )
             if (!activeGuild) {
                 return
             }
             await emit(LEAVE_VOICE_CHANNEL, { guildId: activeGuild.id })
-            localGuild.voice_channels[0].active = true
+            localGuild.voiceChannels[0].active = true
         } else {
             await emit(JOIN_VOICE_CHANNEL, {
                 guildId: guild.id,
                 channelId: channel.id
             })
-            localGuild.voice_channels[0].active = false
+            localGuild.voiceChannels[0].active = false
         }
 
         // Update the guild ID store
@@ -96,7 +101,7 @@
 
         // Update voice channels for the UI
         for (const currGuild of guilds) {
-            for (const vchan of currGuild.voice_channels) {
+            for (const vchan of currGuild.voiceChannels) {
                 vchan.active =
                     currGuild.id === guild.id && vchan.id === channel.id
                         ? true

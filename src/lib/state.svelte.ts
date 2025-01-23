@@ -1,5 +1,11 @@
 import Fuse from 'fuse.js'
-import type { CachedTrack, Tag, TagGroup, Track } from './types'
+import {
+    DEFAULT_GROUP,
+    type CachedTrack,
+    type Tag,
+    type TagGroup,
+    type Track
+} from './types'
 
 type TrackInternal = {
     track: Track
@@ -846,6 +852,20 @@ export class TagGroupSet {
         } else {
             return false
         }
+    }
+
+    sorted() {
+        const defaultGroup = this.#groups.find((g) => g.name === DEFAULT_GROUP)
+        const customGroups = this.#groups.filter((g) => !g.builtin)
+        const unmodifiableGroups = this.#groups.filter((g) => !g.modifiable)
+
+        return [
+            defaultGroup as TagGroup,
+            ...customGroups.toSorted((a, b) => a.name.localeCompare(b.name)),
+            ...unmodifiableGroups.toSorted((a, b) =>
+                a.name.localeCompare(b.name)
+            )
+        ]
     }
 
     *[Symbol.iterator]() {

@@ -86,9 +86,6 @@ export const load = (async () => {
     // Tags
     const cachedGroups = (await tagsStore.get<TagGroup[]>(TAGS_SETTING)) ?? []
 
-    appTags.add({ name: DEFAULT_GROUP, tagSet: new TagSet([]) })
-    appTags.add({ name: ALBUM_GROUP, tagSet: new TagSet([]) })
-    appTags.add({ name: ARTIST_GROUP, tagSet: new TagSet([]) })
     for (const group of cachedGroups) {
         //@ts-expect-error JavaScript has no clue how to deserialize into a class so we create TagSets manually
         group.tagSet = new TagSet(group.tagSet)
@@ -97,6 +94,24 @@ export const load = (async () => {
 
         appTags.add(group)
     }
+    appTags.add({
+        name: DEFAULT_GROUP,
+        tagSet: new TagSet([]),
+        builtin: true,
+        modifiable: true
+    })
+    appTags.add({
+        name: ALBUM_GROUP,
+        tagSet: new TagSet([]),
+        builtin: true,
+        modifiable: false
+    })
+    appTags.add({
+        name: ARTIST_GROUP,
+        tagSet: new TagSet([]),
+        builtin: true,
+        modifiable: false
+    })
 
     // Setup all the global event listeners
     await listen<TrackEventPayload>(TRACK_PLAYED, (ev) => {

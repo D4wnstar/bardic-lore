@@ -55,7 +55,7 @@ export type MaskedTrack = {
 export type GuildSlug = {
     id: number
     name: string
-    voice_channels: VoiceChannelSlug[]
+    voiceChannels: VoiceChannelSlug[]
     offline: boolean
 }
 
@@ -71,12 +71,12 @@ export type VoiceChannelSlug = {
 /**
  * A tag for organization and filtering. The `value` is the actual text of the
  * tag, whereas the "owners" are all the tracks that have this tag on them.
- * `group` is the name of the group the `TagGroup` the tag is in, if any.
+ * `group` is the name of the group the `TagGroup` the tag is in.
  */
 export type Tag = {
     value: string
     owners: TrackSet
-    group?: string
+    group: string
 }
 
 /**
@@ -85,6 +85,8 @@ export type Tag = {
 export type TagGroup = {
     name: string
     tagSet: TagSet
+    builtin: boolean
+    modifiable: boolean
 }
 
 /**

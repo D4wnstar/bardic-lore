@@ -28,7 +28,7 @@
     </h4>
     <hr class="hr my-2" />
     <div class="space-y-1">
-        {#each guild.voice_channels.toSorted( (a, b) => a.name.localeCompare(b.name) ) as channel}
+        {#each guild.voiceChannels.toSorted( (a, b) => a.name.localeCompare(b.name) ) as channel}
             <button
                 class={[
                     'p-1 w-full items-center text-left flex gap-3 !bg-opacity-50 rounded-md',

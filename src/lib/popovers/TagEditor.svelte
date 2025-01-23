@@ -1,13 +1,18 @@
 <script lang="ts">
     import { TagGroupSet, TagSet, TrackSet } from '$lib/state.svelte'
     import { appTags, TAGS_FILENAME, TAGS_SETTING } from '$lib/stores.svelte'
-    import { DEFAULT_GROUP, type CachedTrack, type Tag } from '$lib/types'
+    import {
+        DEFAULT_GROUP,
+        type CachedTrack,
+        type Tag,
+        type TagGroup
+    } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { Modal, type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import { load, Store } from '@tauri-apps/plugin-store'
-    import { PenBox, Plus, Save, Tag as TagIcon } from 'lucide-svelte'
-    import { getContext, onDestroy, onMount } from 'svelte'
+    import { PenBox, Plus, Save, Tag as TagIcon, X } from 'lucide-svelte'
+    import { getContext, onDestroy, onMount, untrack } from 'svelte'
     import GroupDeleteConfirmation from './tag-editor-components/GroupDeleteConfirmation.svelte'
     import TagWithDelete from './tag-editor-components/TagWithDelete.svelte'
 
@@ -20,12 +25,21 @@
 
     let trackTags = $state(appTags.getByTrack(track))
     let filteredGroups = $derived.by(() => {
-        const filtered = appTags.groups.map((g) => {
-            return {
-                name: g.name,
-                tagSet: g.tagSet.difference(trackTags)
-            }
-        })
+        // Ignore unmodifiable groups, remove already selected tags, sort alphabetically
+        const filtered: TagGroup[] = appTags.groups
+            .filter((g) => g.modifiable)
+            .map((g) => {
+                return {
+                    ...g,
+                    tagSet: g.tagSet.difference(trackTags)
+                }
+            })
+            .toSorted((a, b) => a.name.localeCompare(b.name))
+
+        // Default group should always be last (it's guaranteed to exist)
+        const defaultIndex = filtered.findIndex((g) => g.name === DEFAULT_GROUP)
+        filtered.push(...filtered.splice(defaultIndex, 1))
+
         return new TagGroupSet(filtered)
     })
 
@@ -40,11 +54,13 @@
     let editingTagString: string = $state('')
     $effect(() => {
         if (open === false) {
-            removeGroupModal = false
-            removeTagModalState = false
-            editingGroupName = null
-            editingTagName = null
-            editingTagString = ''
+            untrack(() => {
+                removeGroupModal = false
+                removeTagModalState = false
+                editingGroupName = null
+                editingTagName = null
+                editingTagString = ''
+            })
         }
     })
 
@@ -81,11 +97,11 @@
 
         // Update both the local tags and the global ones
         if (mode === 'add') {
-            appTags.addTagOwners(tag.group ?? DEFAULT_GROUP, tag)
+            appTags.addTagOwners(tag.group, tag)
             trackTags.add(tag)
             if (handleTagEdit) handleTagEdit(tag, 'add')
         } else if (mode === 'remove') {
-            appTags.deleteTagOwners(tag.group ?? DEFAULT_GROUP, tag)
+            appTags.deleteTagOwners(tag.group, tag)
             trackTags.delete(tag)
             if (handleTagEdit) handleTagEdit(tag, 'remove')
         }
@@ -94,7 +110,7 @@
     }
 
     async function deleteTag(tag: Tag) {
-        appTags.deleteTag(tag.group ?? DEFAULT_GROUP, tag)
+        appTags.deleteTag(tag.group, tag)
         if (handleTagEdit) handleTagEdit(tag, 'remove')
         await store.set(TAGS_SETTING, appTags)
 
@@ -113,7 +129,12 @@
             groupName = `New Group ${newId}`
         }
 
-        const newGroup = { name: groupName, tagSet: new TagSet([]) }
+        const newGroup: TagGroup = {
+            name: groupName,
+            tagSet: new TagSet([]),
+            builtin: false,
+            modifiable: true
+        }
         appTags.add(newGroup)
         await store.set(TAGS_SETTING, appTags)
     }
@@ -141,7 +162,7 @@
         editingGroupName = null
     }
 
-    function addTagFromText(
+    async function addTagFromText(
         e: KeyboardEvent & {
             currentTarget: EventTarget & HTMLInputElement
         },
@@ -155,6 +176,8 @@
                     group: groupName
                 }
                 appTags.addTag(groupName, newTag)
+                await store.set(TAGS_SETTING, appTags)
+                console.log('Added tag', newTag.value, 'to group', groupName)
             }
 
             editingTagName = null
@@ -199,6 +222,7 @@
                     <TagChip
                         {tag}
                         onclick={() => addRemoveTag(tag, 'remove')}
+                        disabled={!appTags.get(tag.group)?.modifiable}
                     />
                 </div>
             {:else}
@@ -207,7 +231,7 @@
         </div>
 
         {#each filteredGroups as group (group)}
-            {#if group.name !== DEFAULT_GROUP}
+            {#if !group.builtin}
                 <div class="flex gap-2">
                     {#if editingGroupName !== group.name}
                         <button
@@ -253,30 +277,46 @@
             {/if}
 
             <div
-                class="preset-outlined-surface-200-800 p-2 rounded-md flex min-h-10"
+                class="preset-outlined-surface-200-800 p-2 rounded-md flex"
                 ondragover={handleDragOver}
                 ondragleave={handleDragLeave}
                 ondrop={(_e) => handleDrop(group.name)}
                 role="listbox"
                 tabindex="0"
             >
-                <button
-                    class="self-center mr-2 opacity-50 hover:opacity-100"
-                    onclick={() => (editingTagName = group.name)}
-                >
-                    <Plus />
-                </button>
-                {#if editingTagName === group.name}
-                    <input
-                        type="text"
-                        name="group-name"
-                        class="input w-24 h-6 mr-2 self-center"
-                        placeholder="New tag"
-                        bind:value={editingTagString}
-                        onkeydown={(e) => addTagFromText(e, group.name)}
-                    />
+                {#if group.modifiable}
+                    <button
+                        class="mr-2 mt-0.5 opacity-50 hover:opacity-100 self-start"
+                        onclick={() => (editingTagName = group.name)}
+                    >
+                        <Plus />
+                    </button>
                 {/if}
                 <div class="grow flex flex-wrap gap-1">
+                    {#if editingTagName === group.name}
+                        <div
+                            class="flex preset-outlined-surface-200-800 rounded items-center px-2 gap-1"
+                        >
+                            <button
+                                class="opacity-50 hover:opacity-100"
+                                onclick={() => {
+                                    editingTagString = ''
+                                    editingTagName = null
+                                }}
+                            >
+                                <X />
+                            </button>
+                            <input
+                                type="text"
+                                name="group-name"
+                                class="input-ghost w-32 h-7 mr-2"
+                                placeholder="New tag"
+                                bind:value={editingTagString}
+                                onkeydown={async (e) =>
+                                    await addTagFromText(e, group.name)}
+                            />
+                        </div>
+                    {/if}
                     {#each group.tagSet.sorted() as tag}
                         <TagWithDelete
                             {tag}
@@ -297,7 +337,7 @@
                     {/each}
                 </div>
 
-                {#if group.name !== DEFAULT_GROUP}
+                {#if !group.builtin}
                     <GroupDeleteConfirmation
                         open={removeGroupModal}
                         {deleteTagGroup}

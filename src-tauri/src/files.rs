@@ -30,6 +30,7 @@ use crate::{
 
 /* DATA STRUCTURES */
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct Tag {
     pub value: String,
 }
@@ -74,6 +75,7 @@ impl Hash for Track {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioSource {
     pub path: PathBuf,
     pub recursive: bool,
@@ -440,9 +442,11 @@ fn save_frontcover(visual: Visual, app: &AppHandle, path: &PathBuf) -> Result<St
 
         let img = formatted.decode()?;
 
-        // Cover in downscaled to a resonable size and filtered here so that we don't
-        // need to do it every time with CSS
-        let mut cover = img.resize(200, 200, FilterType::CatmullRom).into_rgba8();
+        // Cover is downscaled to a resonable size and filtered here so that we don't
+        // need to do it at runtime with CSS
+        let mut cover = img
+            .resize_to_fill(200, 200, FilterType::CatmullRom)
+            .into_rgba8();
         cover
             .pixels_mut()
             .for_each(|p| p.apply_with_alpha(|rgb| rgb / 2, |alpha| alpha / 3));

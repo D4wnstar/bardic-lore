@@ -7,7 +7,8 @@
         ALBUM_GROUP,
         ARTIST_GROUP,
         type CachedTrack,
-        type MaskedTrack
+        type MaskedTrack,
+        type Tag
     } from '$lib/types'
     import {
         appTags,
@@ -43,12 +44,23 @@
 
         // Reset album and artist groups to refresh tags based on available tracks
         appTags.delete(ALBUM_GROUP)
-        appTags.add({ name: ALBUM_GROUP, tagSet: new TagSet([]) })
+        appTags.add({
+            name: ALBUM_GROUP,
+            tagSet: new TagSet([]),
+            builtin: true,
+            modifiable: false
+        })
         appTags.delete(ARTIST_GROUP)
-        appTags.add({ name: ARTIST_GROUP, tagSet: new TagSet([]) })
+        appTags.add({
+            name: ARTIST_GROUP,
+            tagSet: new TagSet([]),
+            builtin: true,
+            modifiable: false
+        })
 
         tracks = cachedTracks
             .map((track) => {
+                // TODO: This function makes refreshing tracks laggy: improve this
                 if (settings.hideOst && track.album) {
                     track.album = track.album
                         .replace(/:? *\(?Complete[^:()]*?Soundtrack\)?/i, '')
@@ -58,10 +70,10 @@
                 }
 
                 if (settings.showAlbumTags && track.album) {
-                    console.log('Hi')
-                    const newTag = {
+                    const newTag: Tag = {
                         value: track.album,
-                        owners: new TrackSet([track])
+                        owners: new TrackSet([track]),
+                        group: ALBUM_GROUP
                     }
                     if (appTags.getTag(track.album)) {
                         appTags.addTagOwners(ALBUM_GROUP, newTag)
@@ -71,9 +83,10 @@
                 }
 
                 if (settings.showArtistTags && track.artist) {
-                    const newTag = {
+                    const newTag: Tag = {
                         value: track.artist,
-                        owners: new TrackSet([track])
+                        owners: new TrackSet([track]),
+                        group: ARTIST_GROUP
                     }
                     if (appTags.getTag(track.artist)) {
                         appTags.addTagOwners(ARTIST_GROUP, newTag)
@@ -165,8 +178,7 @@
                 title: 'Created client',
                 description:
                     'Successfully created client. Servers should refresh in a moment.',
-                type: 'success',
-                duration: 10000
+                type: 'success'
             })
         })
         unlisten.push(unlisten1)
