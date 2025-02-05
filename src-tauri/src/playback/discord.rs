@@ -30,8 +30,8 @@ use crate::{
         TRACK_LOOPED, TRACK_PAUSED, TRACK_PLAYABLE, TRACK_PLAYED, UPDATED_GUILDS, UPDATE_PLAYER,
         UPDATE_TRACKS,
     },
-    parallel::ParallelTracks,
-    queue::TrackQueue,
+    playback::parallel::ParallelTracks,
+    playback::queue::TrackQueue,
     stores::{BOT_TOKEN_SETTING, DISCORD_FILENAME, GUILDS_SETTING, SETTINGS_FILENAME},
     Error,
 };
@@ -309,8 +309,8 @@ async fn create_playlist(
 
     queue.stop();
     // Wait a few milliseconds to let the frontend process the events fired by stopping the queue
-    sleep(Duration::from_millis(50)).await;
-    app.emit(QUEUE_EMPTIED, ()).unwrap();
+    // sleep(Duration::from_millis(50)).await;
+    // app.emit(QUEUE_EMPTIED, ()).unwrap();
 
     let mut tracks_data = payload.tracksData;
     if payload.shuffle {
@@ -513,7 +513,7 @@ async fn queue_action(
         TrackAction::Resume => None,
         TrackAction::Pause => None,
         TrackAction::Skip => None,
-        TrackAction::Stop => Some(QUEUE_EMPTIED),
+        TrackAction::Stop => None,
         TrackAction::Loop => None,
         TrackAction::Seek => Some(UPDATE_PLAYER),
         TrackAction::ChangeVolume => None,

@@ -1,11 +1,15 @@
-mod discord;
 mod events;
 mod files;
-mod parallel;
-mod queue;
+mod playback;
 mod stores;
 
-use discord::IsSerenityClientOn;
+use std::sync::Arc;
+
+use playback::{
+    discord::{self, IsSerenityClientOn},
+    local::{self, RodioQueue, StateTracker},
+};
+use rodio::{OutputStream, Sink};
 use serde_json::json;
 use stores::{DISCORD_FILENAME, GUILDS_SETTING};
 use tauri::Manager;
@@ -27,17 +31,19 @@ pub enum Error {
     #[error("Operation cancelled. {0}")]
     Cancelled(String),
     #[error(transparent)]
-    TauriError(#[from] tauri::Error),
+    Tauri(#[from] tauri::Error),
     #[error("Discord client already exists")]
     SerenityClientAlreadyExists(),
     #[error(transparent)]
-    SerenityError(#[from] serenity::Error),
+    Serenity(#[from] serenity::Error),
     #[error("The payload was malformed. {0}")]
     BadPayload(String),
     #[error(transparent)]
     Symphonia(#[from] symphonia::core::errors::Error),
     #[error(transparent)]
     Image(#[from] image::ImageError),
+    #[error(transparent)]
+    Rodio(#[from] crate::playback::local::RodioError),
 }
 
 impl serde::Serialize for Error {
@@ -54,12 +60,19 @@ impl serde::Serialize for Error {
 pub async fn run() {
     tracing_subscriber::fmt::init();
 
+    // Initialize the rodio output stream and global sink. The stream needs to live for the
+    // entirety of the application runtime
+    let (_stream, handle) =
+        OutputStream::try_default().expect("There should be at least one audio output.");
+    let rodio_queue = RodioQueue::new(&handle);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(tokio::sync::Mutex::new(IsSerenityClientOn(false)))
+        .manage(rodio_queue)
         .invoke_handler(tauri::generate_handler![
             files::add_audio_sources,
             files::update_audio_source,
@@ -67,6 +80,9 @@ pub async fn run() {
             files::update_tracks_from_sources,
             discord::create_discord_client,
             discord::is_bot_connected,
+            local::initialize_rodio_event_handler,
+            local::queue_track,
+            local::create_playlist,
         ])
         .setup(|app| {
             // Reset Discord guilds on startup to avoid stale data

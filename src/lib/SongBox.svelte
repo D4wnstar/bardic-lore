@@ -29,6 +29,7 @@
     import { onDestroy, onMount } from 'svelte'
     import TagEditor from './popovers/TagEditor.svelte'
     import TagChip from './utils/TagChip.svelte'
+    import { invoke } from '@tauri-apps/api/core'
 
     interface Props {
         track: CachedTrack
@@ -80,6 +81,14 @@
                 queueMethod: method,
                 volume: appState.player.volume
             } satisfies QueueTrackPayload)
+        } else {
+            await invoke('queue_track', {
+                track: track,
+                queueMethod: method,
+                looping: appState.player.loopState === LoopState.LoopTrack
+            }).catch((err) => {
+                console.error(err)
+            })
         }
     }
 

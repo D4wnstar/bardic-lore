@@ -43,3 +43,7 @@ rand = "0.8.5"
 sha2 = "0.10"
 hex = "0.4.3"
 image = "0.25.5"
+rodio = { version = "0.20.1", features = [
+    "tracing",
+    "symphonia-all",
+], default-features = false }
