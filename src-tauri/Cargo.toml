@@ -45,5 +45,5 @@ hex = "0.4.3"
 image = "0.25.5"
 rodio = { version = "0.20.1", features = [
     "tracing",
-    "symphonia-all",
-], default-features = false }
+    # "symphonia-all", # Once seeking is fixed on symphonia-ogg, uncomment and remove default features
+] }

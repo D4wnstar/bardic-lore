@@ -326,15 +326,48 @@ impl RodioQueue {
         return Ok(uuids);
     }
 
-    // TODO: Figure out if there's a way to prepend a track in a rodio Sink
-    // pub fn prepend(&self, track_data: &TrackData, looping: bool) -> Result<Uuid, RodioError> {
-    //     let (source, track, callback) = self.setup_new_track(&track_data.path)?;
-    //     let uuid = track.uuid.clone();
+    pub fn prepend(&self, track_data: &TrackData, looping: bool) -> Result<Uuid, RodioError> {
+        let (new_source, track, callback) = self.setup_new_track(&track_data.path)?;
+        let uuid = track.uuid.clone();
 
-    //     let mut queue = self.inner.lock();
+        // Copy the current source to refresh it
+        let (current_source, _, _) = {
+            let current_track = &self.tracks.lock()[0];
+            self.setup_new_track(&current_track.path).unwrap()
+        };
 
-    //     return Ok(uuid);
-    // }
+        // Queue: Old Callback, ...
+        self.sources.insert(0, current_source, false);
+        // Queue: Old Track, Old Callback, ...
+        self.sources.insert(0, callback, true);
+        // Queue: New Callback, Old Track, Old Callback, ...
+        self.sources.insert(0, new_source, false);
+        // Queue: New Track, New Callback, Old Track, Old Callback, ...
+
+        self.tracks.lock().push_front(track);
+
+        // Skip current track to update the player
+        self.skip();
+        self.resume();
+
+        let track_json = self.make_track_json(uuid, &track_data);
+        self.app
+            .emit(
+                ADD_TRACK,
+                json!({
+                    "track": track_json,
+                    "parallel": false,
+                    "queueMethod": QueueMethod::Backskip,
+                    "looping": looping,
+                }),
+            )
+            .unwrap();
+        self.app
+            .emit(UPDATE_PLAYER, json!({ "position": 0 }))
+            .unwrap();
+
+        return Ok(uuid);
+    }
 
     pub fn set_volume(&self, volume: f32) {
         *self.state.volume.lock() = volume;
@@ -419,12 +452,11 @@ impl RodioQueue {
                     self.setup_new_track(&current_track.path).unwrap()
                 };
 
-                println!("Before skipping duration");
+                // skip_duration is *extremely* slow, as it doesn't actually skip anything
+                // It just decodes each sample and discards it
+                // However, if seeking is not available, it's currently the only option
                 let source = source.skip_duration(Duration::from_secs(position));
-                println!("After skipping duration");
-                // println!("Before: {:?}", self.sources);
                 self.sources.insert(0, source, false);
-                // println!("After: {:?}", self.sources);
                 self.skip();
                 self.app
                     .emit(UPDATE_PLAYER, json!({ "position": position }))

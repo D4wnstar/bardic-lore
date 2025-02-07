@@ -36,7 +36,12 @@ pub async fn queue_track(
     queue: State<'_, RodioQueue>,
 ) -> Result<(), RodioError> {
     queue.set_volume(volume);
-    queue.add(&track_data, looping)?;
+
+    match queue_method {
+        QueueMethod::Normal => queue.add(&track_data, looping)?,
+        QueueMethod::Backskip => queue.prepend(&track_data, looping)?,
+        _ => uuid::Uuid::new_v4(),
+    };
 
     return Ok(());
 }

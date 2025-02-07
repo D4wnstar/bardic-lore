@@ -129,13 +129,7 @@
                     ...args
                 } satisfies QueueTrackPayload)
             } else {
-                // Prepending is currently not supported by rodio
-                const args = {
-                    action: TrackAction.Seek,
-                    position: 0,
-                    parallel: false
-                }
-                await invoke('queue_action', args).catch((e) => errorToast(e))
+                await invoke('queue_track', args).catch((e) => errorToast(e))
             }
         }
     }

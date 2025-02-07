@@ -67,9 +67,9 @@ where
         for (idx, sound) in sounds.iter().enumerate() {
             let is_callback = sound.1;
             if !is_callback {
-                write!(f, "Sound {idx}, ")?;
+                write!(f, "Sound {}, ", idx.saturating_add(1).saturating_div(2))?;
             } else {
-                write!(f, "Callback {}, ", idx.saturating_sub(1))?;
+                write!(f, "Callback {}, ", idx.saturating_div(2))?;
             }
         }
         write!(f, "] }}")
