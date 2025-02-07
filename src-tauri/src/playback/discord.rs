@@ -349,7 +349,7 @@ async fn create_playlist(
     let out = serde_json::to_value(&response_tracks).unwrap();
     let res = json!({ "tracks": out });
     // Sleep for a short time to guarantee that the QUEUE_EMPTIED event will be processed first
-    sleep(Duration::from_millis(50)).await;
+    // sleep(Duration::from_millis(50)).await;
     app.emit(PLAYLIST_CREATED, res).unwrap();
 }
 

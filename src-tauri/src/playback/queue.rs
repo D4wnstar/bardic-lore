@@ -2,6 +2,7 @@
 //! The `TrackQueue` data structure from `songbird`, extracted here to extend it.
 
 /*
+This code is taken directly from the source code of serenity 0.12.4.
 The original version of this code was licensed under the ISC license, as found below.
 
 ISC License (ISC)

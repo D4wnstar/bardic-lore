@@ -29,6 +29,65 @@
     import { rgbToHex } from './utils/utils'
     import { LoopState, SortMethod, SortOrder } from './state.svelte'
     import { load } from '@tauri-apps/plugin-store'
+    import { invoke } from '@tauri-apps/api/core'
+    import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
+    import { getContext } from 'svelte'
+
+    const toast: ToastContext = getContext('toast')
+    function errorToast(description: string) {
+        toast.create({
+            title: 'Error',
+            description
+        })
+    }
+
+    async function handlePlay() {
+        const args = {
+            action: TrackAction.Resume,
+            parallel: false
+        }
+
+        if (!appState.offline) {
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                ...args
+            } satisfies TrackActionPayload)
+        } else {
+            await invoke('queue_action', args)
+        }
+    }
+
+    async function handlePause() {
+        const args = {
+            action: TrackAction.Pause,
+            parallel: false
+        }
+
+        if (!appState.offline) {
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                ...args
+            } satisfies TrackActionPayload)
+        } else {
+            await invoke('queue_action', args)
+        }
+    }
+
+    async function handleSkip() {
+        const args = {
+            action: TrackAction.Skip,
+            parallel: false
+        }
+
+        if (!appState.offline) {
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                ...args
+            } satisfies TrackActionPayload)
+        } else {
+            await invoke('queue_action', args).catch((e) => errorToast(e))
+        }
+    }
 
     async function handleBackSkip() {
         if (appState.playlist.isEmpty()) {
@@ -39,21 +98,45 @@
             appState.player.position >= 5 /* seconds */ ||
             appState.playlist.previous.length === 0
         ) {
-            await emit(UPDATE_TRACKS, {
-                guildId: appState.guildId,
+            // If the track has been playing for a while, reset the position to zero
+            const args = {
                 action: TrackAction.Seek,
                 position: 0,
                 parallel: false
-            } satisfies TrackActionPayload)
+            }
+
+            if (!appState.offline) {
+                await emit(UPDATE_TRACKS, {
+                    guildId: appState.guildId,
+                    ...args
+                } satisfies TrackActionPayload)
+            } else {
+                await invoke('queue_action', args).catch((e) => errorToast(e))
+            }
         } else {
+            // If the track just started, go back to the previous one
             let toAdd = appState.playlist.last() as Track
-            await emit(QUEUE_TRACK, {
-                guildId: appState.guildId,
+            const args = {
                 trackData: toAdd,
                 queueMethod: QueueMethod.Backskip,
                 looping: appState.player.loopState === LoopState.LoopTrack,
                 volume: appState.player.volume
-            } satisfies QueueTrackPayload)
+            }
+
+            if (!appState.offline) {
+                await emit(QUEUE_TRACK, {
+                    guildId: appState.guildId,
+                    ...args
+                } satisfies QueueTrackPayload)
+            } else {
+                // Prepending is currently not supported by rodio
+                const args = {
+                    action: TrackAction.Seek,
+                    position: 0,
+                    parallel: false
+                }
+                await invoke('queue_action', args).catch((e) => errorToast(e))
+            }
         }
     }
 
@@ -122,7 +205,7 @@
 <div
     class="border-t-[1px] border-surface-900 mt-2 h-24 p-2 flex-none flex items-center"
 >
-    <div class="2xl:min-w-[200px]"></div>
+    <div class="2xl:min-w-[200px]"><!-- Padding --></div>
     <div class="grow">
         <div class="flex justify-center gap-2 mb-2 mt-2">
             <button
@@ -139,39 +222,17 @@
             {#if appState.player.playing}
                 <button
                     class="btn-icon rounded-none preset-filled-primary-100-900"
-                    onclick={async () => {
-                        await emit(UPDATE_TRACKS, {
-                            guildId: appState.guildId,
-                            action: TrackAction.Pause,
-                            parallel: false
-                        } satisfies TrackActionPayload)
-                    }}
-                >
-                    <Pause /></button
+                    onclick={handlePause}><Pause /></button
                 >
             {:else}
                 <button
                     class="btn-icon rounded-none preset-filled-primary-100-900"
-                    onclick={async () => {
-                        await emit(UPDATE_TRACKS, {
-                            guildId: appState.guildId,
-                            action: TrackAction.Resume,
-                            parallel: false
-                        } satisfies TrackActionPayload)
-                    }}
-                >
-                    <Play /></button
+                    onclick={handlePlay}><Play /></button
                 >
             {/if}
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"
-                onclick={async () => {
-                    await emit(UPDATE_TRACKS, {
-                        guildId: appState.guildId,
-                        action: TrackAction.Skip,
-                        parallel: false
-                    } satisfies TrackActionPayload)
-                }}><SkipForward /></button
+                onclick={handleSkip}><SkipForward /></button
             >
             <button
                 class="btn-icon rounded-none hover:preset-filled-surface-100-900"

@@ -1,15 +1,12 @@
 mod events;
 mod files;
+mod local;
 mod playback;
 mod stores;
 
-use std::sync::Arc;
-
-use playback::{
-    discord::{self, IsSerenityClientOn},
-    local::{self, RodioQueue, StateTracker},
-};
-use rodio::{OutputStream, Sink};
+use local::sink::RodioQueue;
+use playback::discord::{self, IsSerenityClientOn};
+use rodio::OutputStream;
 use serde_json::json;
 use stores::{DISCORD_FILENAME, GUILDS_SETTING};
 use tauri::Manager;
@@ -43,7 +40,7 @@ pub enum Error {
     #[error(transparent)]
     Image(#[from] image::ImageError),
     #[error(transparent)]
-    Rodio(#[from] crate::playback::local::RodioError),
+    Rodio(#[from] crate::local::sink::RodioError),
 }
 
 impl serde::Serialize for Error {
@@ -64,7 +61,6 @@ pub async fn run() {
     // entirety of the application runtime
     let (_stream, handle) =
         OutputStream::try_default().expect("There should be at least one audio output.");
-    let rodio_queue = RodioQueue::new(&handle);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -72,7 +68,7 @@ pub async fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(tokio::sync::Mutex::new(IsSerenityClientOn(false)))
-        .manage(rodio_queue)
+        // .manage(rodio_queue)
         .invoke_handler(tauri::generate_handler![
             files::add_audio_sources,
             files::update_audio_source,
@@ -80,17 +76,20 @@ pub async fn run() {
             files::update_tracks_from_sources,
             discord::create_discord_client,
             discord::is_bot_connected,
-            local::initialize_rodio_event_handler,
-            local::queue_track,
-            local::create_playlist,
+            local::playback::queue_track,
+            local::playback::create_playlist,
+            local::playback::queue_action,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             // Reset Discord guilds on startup to avoid stale data
             let store = app.store(DISCORD_FILENAME)?;
             store.set(GUILDS_SETTING, json!([]));
 
             let scope = app.fs_scope();
             scope.allow_directory(app.path().app_cache_dir()?, true)?;
+
+            let rodio_queue = RodioQueue::new_and_play(app.handle().clone(), &handle);
+            app.manage(rodio_queue);
 
             return Ok(());
         })

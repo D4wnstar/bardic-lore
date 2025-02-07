@@ -53,40 +53,50 @@
     }
 
     async function createPlaylist() {
-        if (appState.offline) return
         // This is guaranteed to work because the track needs to be in the list
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
             tracks.filter((mt) => mt.visible).map((mt) => mt.track)
         ) as CachedTrack[]
-        await emit(CREATE_PLAYLIST, {
-            guildId: appState.guildId,
+        const args = {
             tracksData: tracksToSend,
             volume: appState.player.volume,
             loopFirst: appState.player.loopState === LoopState.LoopTrack,
             shuffle: appState.player.shuffle
-        } satisfies CreatePlaylistPayload)
+        }
+
+        if (!appState.offline) {
+            await emit(CREATE_PLAYLIST, {
+                guildId: appState.guildId,
+                ...args
+            } satisfies CreatePlaylistPayload)
+        } else {
+            await invoke('create_playlist', args).catch((err) => {
+                console.error(err)
+            })
+        }
     }
 
     async function addToQueue(method: QueueMethod) {
+        const args = {
+            trackData: track,
+            queueMethod: method,
+            looping: appState.player.loopState === LoopState.LoopTrack,
+            volume: appState.player.volume
+        }
+
+        if (appState.playlist.current()) {
+            skipRemoveOnEnd.skip = method === QueueMethod.OverwriteCurrent
+        }
+
         if (!appState.offline) {
-            if (appState.playlist.current()) {
-                skipRemoveOnEnd.skip = method === QueueMethod.OverwriteCurrent
-            }
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,
-                trackData: track,
-                looping: appState.player.loopState === LoopState.LoopTrack,
-                queueMethod: method,
-                volume: appState.player.volume
+                ...args
             } satisfies QueueTrackPayload)
         } else {
-            await invoke('queue_track', {
-                track: track,
-                queueMethod: method,
-                looping: appState.player.loopState === LoopState.LoopTrack
-            }).catch((err) => {
+            await invoke('queue_track', args).catch((err) => {
                 console.error(err)
             })
         }

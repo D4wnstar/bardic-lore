@@ -7,6 +7,7 @@
     import type { Player } from '$lib/state.svelte'
     import { appState } from '$lib/stores.svelte'
     import { Progress } from '@skeletonlabs/skeleton-svelte'
+    import { invoke } from '@tauri-apps/api/core'
     import { emit } from '@tauri-apps/api/event'
 
     interface Props {
@@ -45,13 +46,21 @@
         const clickX = e.clientX - rect.left
         const progressWidth = rect.width
         const seekTo = Math.floor((clickX / progressWidth) * duration)
-        await emit(UPDATE_TRACKS, {
-            guildId: appState.guildId,
+
+        const args = {
             action: TrackAction.Seek,
             position: seekTo,
             parallel: uuid ? true : false,
             uuid
-        } satisfies TrackActionPayload)
+        }
+        if (!appState.offline) {
+            await emit(UPDATE_TRACKS, {
+                guildId: appState.guildId,
+                ...args
+            } satisfies TrackActionPayload)
+        } else {
+            await invoke('queue_action', args).catch((e) => console.error(e))
+        }
     }
 
     let fmtProgress = $derived(formatSeconds(player.position))
