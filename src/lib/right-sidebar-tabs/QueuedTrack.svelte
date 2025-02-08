@@ -32,8 +32,10 @@
             {/if}
         {/key}
     </div>
-    <div class="flex flex-col py-2 pl-1 pr-4">
+    <div class="flex flex-col justify-center py-2 pl-1 pr-4">
         <p class="line-clamp-1">{track.title}</p>
-        <p class="opacity-50 line-clamp-1">{track.album}</p>
+        {#if track.album}
+            <p class="opacity-50 line-clamp-1">{track.album}</p>
+        {/if}
     </div>
 </div>

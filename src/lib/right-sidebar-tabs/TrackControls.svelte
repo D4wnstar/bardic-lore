@@ -111,7 +111,7 @@
 <div class="w-full preset-filled-surface-100-900 !bg-opacity-50 rounded-md">
     <div class="flex">
         <!-- Becomes X icon on hover and allows removing track -->
-        <div class="min-h-full min-w-16 flex items-center justify-center">
+        <div class="min-h-full min-w-16 flex items-center justify-center pt-2">
             {#if coverImage}
                 <img
                     src={coverImage}
@@ -122,9 +122,13 @@
                 <Music size="32" strokeWidth="1.75" />
             {/if}
         </div>
-        <div class="flex flex-col pb-1 pt-2 pl-1 pr-4">
+        <div class="flex flex-col justify-center pb-1 pt-2 pl-1 pr-4">
             <p class="line-clamp-1">{parallelState.track.title}</p>
-            <p class="opacity-50 line-clamp-1">{parallelState.track.album}</p>
+            {#if parallelState.track.album}
+                <p class="opacity-50 line-clamp-1">
+                    {parallelState.track.album}
+                </p>
+            {/if}
         </div>
     </div>
     <div class="flex mx-auto px-2 justify-center">
