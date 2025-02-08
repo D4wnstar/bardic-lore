@@ -46,8 +46,13 @@
 
     function handleContextMenu(event: MouseEvent) {
         event.preventDefault()
-        contextMenuX = event.clientX
-        contextMenuY = event.clientY
+        const target = event.currentTarget as HTMLElement
+        // The VirtualList messes with the event positioning, so we
+        // fix it by shifting the event coordinates by the bounding box
+        const rect = target.getBoundingClientRect()
+        contextMenuX = event.x - rect.width * 1.55
+        contextMenuY = event.y - rect.height * 0.4
+        // (i have no ideas why these numbers work)
         showContextMenu = true
     }
 

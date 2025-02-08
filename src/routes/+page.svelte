@@ -27,6 +27,7 @@
     import { fade } from 'svelte/transition'
     import { TagSet, TrackSet } from '$lib/state.svelte'
     import Fuse from 'fuse.js'
+    import VirtualList from '$lib/utils/VirtualList.svelte'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
@@ -124,6 +125,7 @@
     }
 
     function filterTracks() {
+        let timeBefore = Date.now()
         // First, set all tracks to not be visible
         tracks.forEach((pair) => (pair.visible = false))
 
@@ -158,6 +160,9 @@
 
             pair.visible = foundTag
         }
+
+        let timeAfter = Date.now()
+        console.log(`Filtering took ${timeAfter - timeBefore} ms`)
     }
 
     let unlisten: UnlistenFn[] = []
@@ -208,18 +213,15 @@
             <div class="flex grow flex-col">
                 <SearchBar bind:searchTerm {filterTracks} />
                 {#if tracks.length > 0}
-                    <div class="mr-4 flex flex-wrap gap-2 overflow-y-auto p-1">
-                        {#each tracks as pair (pair)}
-                            {#if pair.visible}
-                                <div
-                                    class="flex-[10rem] xl:flex-[12rem] max-w-[14rem]"
-                                    transition:fade={{ duration: 100 }}
-                                >
+                    <VirtualList items={tracks.filter((pair) => pair.visible)}>
+                        {#snippet children(pair)}
+                            {#key pair}
+                                <div transition:fade={{ duration: 100 }}>
                                     <SongBox track={pair.track} {tracks} />
                                 </div>
-                            {/if}
-                        {/each}
-                    </div>
+                            {/key}
+                        {/snippet}
+                    </VirtualList>
                 {:else}
                     <div
                         class="type-scale-6 text-surface-800-200 text-center flex flex-col gap-2 justify-center items-center h-full"
