@@ -55,6 +55,16 @@ pub async fn run() {
     tracing_subscriber::fmt::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            #[cfg(desktop)]
+            {
+                // On desktop, focus on the existing window if the user tries to open
+                // Bardic Lore while it's already open
+                if let Some(window) = app.get_webview_window("main") {
+                    drop(window.set_focus());
+                }
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
