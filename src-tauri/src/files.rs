@@ -131,19 +131,21 @@ impl Ord for AudioSource {
 /* TAURI COMMANDS */
 /// Add audio sources with a folder picker dialog.
 #[tauri::command]
-pub async fn add_audio_sources(app: AppHandle) -> Result<HashSet<AudioSource>, Error> {
+pub async fn add_audio_sources(app: AppHandle) -> Result<Option<HashSet<AudioSource>>, Error> {
     let paths = app.dialog().file().blocking_pick_folders();
 
     if let Some(paths) = paths {
         let sources = paths
             .iter()
             .map(|path| AudioSource::new(path.clone().into_path().unwrap()));
+
         let mut audio_sources = get_sources_from_store(&app)?;
-        audio_sources.extend(sources);
+        audio_sources.extend(sources.clone());
         set_sources_in_store(&app, &audio_sources)?;
-        return Ok(audio_sources);
+
+        return Ok(Some(sources.collect()));
     } else {
-        return Err(Error::Cancelled("No paths selected".to_string()));
+        return Ok(None);
     }
 }
 
@@ -234,7 +236,7 @@ pub async fn update_tracks_from_sources(
         }
     }
 
-    if reset.is_some() {
+    if reset.unwrap_or(false) {
         let store = app.store(TRACKS_FILENAME)?;
         store.set(TRACKS_SETTING, serde_json::to_value(tracks_to_add.clone())?);
         store.save()?;

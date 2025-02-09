@@ -25,8 +25,8 @@
         sources = (await store.get<AudioSource[]>(AUDIO_SOURCES_SETTING)) ?? []
     }
 
-    async function selectFolder() {
-        const newSources = await invoke<AudioSource[]>(
+    async function addAudioSources() {
+        const newSources = await invoke<AudioSource[] | undefined>(
             'add_audio_sources'
         ).catch((err) => {
             console.error(err)
@@ -119,7 +119,7 @@
     <div class="flex justify-center gap-x-2 pt-2">
         <button
             class="preset-outlined-primary-400-600 btn self-center"
-            onclick={selectFolder}
+            onclick={addAudioSources}
         >
             Add sources
         </button>
