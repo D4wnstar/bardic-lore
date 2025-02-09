@@ -146,3 +146,9 @@ export const cachedCoverImages: SvelteMap<string, string> = new SvelteMap()
  * They are encoded as WebP.
  */
 export const cachedCoverThumbnails: SvelteMap<string, string> = new SvelteMap()
+
+/**
+ * The top offset of the central virtual list, mainly used to fix the context menu
+ * coordinates on a right click.
+ */
+export const virtualListTop = $state({ top: 0 })

@@ -4,6 +4,8 @@
 -->
 
 <script lang="ts" generics="T">
+    import { virtualListTop } from '$lib/stores.svelte'
+
     // Import necessary Svelte utilities
     import { onMount, tick, type Snippet } from 'svelte'
 
@@ -176,6 +178,9 @@
     async function handle_scroll() {
         const { scrollTop } = viewport
         const old_start = start
+
+        // Update the global store
+        virtualListTop.top = viewport.scrollTop
 
         // Update height map for currently visible rows
         for (let v = 0; v < row_elements.length; v += 1) {

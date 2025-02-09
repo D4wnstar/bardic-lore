@@ -3,7 +3,8 @@
         appState,
         appTags,
         settings,
-        skipRemoveOnEnd
+        skipRemoveOnEnd,
+        virtualListTop
     } from './stores.svelte'
     import {
         ALBUM_GROUP,
@@ -49,10 +50,11 @@
         const target = event.currentTarget as HTMLElement
         // The VirtualList messes with the event positioning, so we
         // fix it by shifting the event coordinates by the bounding box
+        // The y coordinate is also shifted by the virtual list offset
         const rect = target.getBoundingClientRect()
         contextMenuX = event.x - rect.width * 1.55
-        contextMenuY = event.y - rect.height * 0.4
-        // (i have no ideas why these numbers work)
+        contextMenuY = event.y - rect.height * 0.4 + virtualListTop.top
+        // (i have no ideas why these exact multipliers work lol)
         showContextMenu = true
     }
 
@@ -64,7 +66,6 @@
             track,
             tracks.filter((mt) => mt.visible).map((mt) => mt.track)
         ) as CachedTrack[]
-        console.log('Permuted tracks')
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
             tracksData: tracksToSend,
@@ -72,7 +73,6 @@
             loopFirst: appState.player.loopState === LoopState.LoopTrack,
             shuffle: appState.player.shuffle
         } satisfies CreatePlaylistPayload)
-        console.log('CREATE_PLAYLIST event emitted')
     }
 
     async function addToQueue(method: QueueMethod) {
