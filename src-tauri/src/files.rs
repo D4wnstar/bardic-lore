@@ -264,27 +264,23 @@ fn make_track(
     let file_ext = path.extension().map(|s| s.to_str()).flatten().unwrap_or("");
     let file_ext_with_dot = format!(".{file_ext}");
 
-    let metadata = get_audio_metadata(&path, &file_ext, app)
-        .inspect_err(|err| warn!("Failed to get audio metadata for {path:?}. Error: {err}"))
-        .unwrap_or(TrackMetadata {
-            track_name: Some(filename.to_string().replace(&file_ext_with_dot, "")),
-            album: None,
-            artist: None,
-            duration: None,
-            cover_hash: None,
-        });
-
-    return Some(Track {
-        title: metadata
-            .track_name
-            .unwrap_or(filename.to_string().replace(&file_ext_with_dot, "")),
-        album: metadata.album,
-        artist: metadata.artist,
-        duration: metadata.duration.map(|t| t.seconds),
-        path: path.clone(),
-        filename,
-        cover_hash: metadata.cover_hash,
-    });
+    match get_audio_metadata(&path, &file_ext, app) {
+        Ok(metadata) => Some(Track {
+            title: metadata
+                .track_name
+                .unwrap_or(filename.to_string().replace(&file_ext_with_dot, "")),
+            album: metadata.album,
+            artist: metadata.artist,
+            duration: metadata.duration.map(|t| t.seconds),
+            path: path.clone(),
+            filename,
+            cover_hash: metadata.cover_hash,
+        }),
+        Err(err) => {
+            warn!("Failed to get audio metadata for {path:?}. Error: {err}");
+            None
+        }
+    }
 }
 
 struct TrackMetadata {
