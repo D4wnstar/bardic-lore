@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { TagGroupSet, TagSet, TrackSet } from '$lib/state.svelte'
     import { appTags, TAGS_FILENAME, TAGS_SETTING } from '$lib/stores.svelte'
     import {
         DEFAULT_GROUP,
@@ -15,6 +14,9 @@
     import { getContext, onDestroy, onMount, untrack } from 'svelte'
     import GroupDeleteConfirmation from './tag-editor-components/GroupDeleteConfirmation.svelte'
     import TagWithDelete from './tag-editor-components/TagWithDelete.svelte'
+    import { TagGroupSet } from '$lib/state/taggroupset.svelte'
+    import { TagSet } from '$lib/state/tagset.svelte'
+    import { TrackSet } from '$lib/state/trackset.svelte'
 
     interface Props {
         track: CachedTrack

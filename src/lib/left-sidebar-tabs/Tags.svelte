@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { TagGroupSet, TagSet } from '$lib/state.svelte'
+    import { TagGroupSet } from '$lib/state/taggroupset.svelte'
+    import { TagSet } from '$lib/state/tagset.svelte'
     import {
         appTags,
         GROUP_ACCORDION_STATES,

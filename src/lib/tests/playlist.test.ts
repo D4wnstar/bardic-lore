@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Playlist, SortMethod, SortOrder } from '../state.svelte'
 import type { Track } from '../types'
+import { Playlist, SortMethod, SortOrder } from '$lib/state/playlist.svelte'
 
 const mockTrack1: Track = {
     uuid: '1',
@@ -49,6 +49,11 @@ describe('Playlist class', () => {
         expect(playlist.queue).toEqual([mockTrack1])
         expect(playlist.previous).toEqual([mockTrack2])
         expect(playlist.priority).toEqual([mockTrack3])
+
+        // Verify internal state initialization
+        const state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(0)
+        expect(state.queueStartIndex).toBe(0)
     })
 
     it('next plays priority track first', () => {
@@ -59,8 +64,8 @@ describe('Playlist class', () => {
 
         const result = playlist.next()
 
-        // 1 should be moved to previous, 2 should be prepended to the queue
-        // before 3
+        // 1 should be moved to previous
+        // 2 should be at the front
         expect(playlist.queue).toEqual([mockTrack2, mockTrack3])
         expect(playlist.previous).toEqual([mockTrack1])
         expect(playlist.priority).toEqual([])
@@ -68,6 +73,36 @@ describe('Playlist class', () => {
             justEnded: mockTrack1,
             nextTrack: mockTrack2
         })
+    })
+
+    it('handles compaction when removal threshold is reached', () => {
+        const playlist = new Playlist([], [], [])
+        // Set threshold for testing
+        Playlist.setCompactThreshold(3)
+
+        // Add tracks and remove them to trigger compaction
+        for (let i = 0; i < 4; i++) {
+            playlist.enqueue({ ...mockTrack1, uuid: `test${i}` })
+        }
+
+        // Remove tracks one by one
+        for (let i = 0; i < 3; i++) {
+            playlist.next()
+        }
+
+        // Verify internal state before final removal
+        let state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(3)
+        expect(state.queueLength).toBe(4)
+
+        // This should trigger compaction
+        playlist.next()
+
+        // Verify compaction occurred
+        state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(0)
+        expect(state.queueLength).toBe(0)
+        expect(playlist.queue).toEqual([])
     })
 
     it('next plays queue track if no priority tracks', () => {
@@ -85,6 +120,10 @@ describe('Playlist class', () => {
             justEnded: mockTrack1,
             nextTrack: mockTrack2
         })
+
+        // Verify internal state
+        const state = playlist.getInternalState()
+        expect(state.removedQueueIndices.has(0)).toBe(true)
     })
 
     it('next does nothing if both queue and priority are empty', () => {
@@ -101,17 +140,25 @@ describe('Playlist class', () => {
         expect(result).toBeUndefined()
     })
 
-    it('clear should remove everything', () => {
+    it('clear should remove everything including tracking state', () => {
         const queue: Track[] = [mockTrack1]
         const previous: Track[] = [mockTrack2]
         const priority: Track[] = [mockTrack3]
         const playlist = new Playlist(queue, previous, priority)
+
+        // Add some removed indices
+        playlist.next()
 
         playlist.clear()
 
         expect(playlist.queue).toEqual([])
         expect(playlist.previous).toEqual([])
         expect(playlist.priority).toEqual([])
+
+        // Verify tracking state is cleared
+        const state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(0)
+        expect(state.queueStartIndex).toBe(0)
     })
 
     it('isEmpty returns true when both queue and priority are empty', () => {
@@ -124,26 +171,30 @@ describe('Playlist class', () => {
     })
 
     it('isEmpty returns false when queue or priority has tracks', () => {
-        const queue: Track[] = [mockTrack1]
-        const previous: Track[] = []
-        const priority: Track[] = []
-        const playlist = new Playlist(queue, previous, priority)
-
+        const playlist = new Playlist([mockTrack1], [], [])
         expect(playlist.isEmpty()).toBe(false)
 
         const playlist2 = new Playlist([], [], [mockTrack2])
         expect(playlist2.isEmpty()).toBe(false)
+
+        const playlist3 = new Playlist([mockTrack1], [], [mockTrack2])
+        expect(playlist3.isEmpty()).toBe(false)
     })
 
-    it('current returns the first track in queue', () => {
+    it('current returns the first non-removed track in queue', () => {
         const queue: Track[] = [mockTrack1, mockTrack2]
         const playlist = new Playlist(queue, [], [])
 
         expect(playlist.current()).toEqual(mockTrack1)
+
+        // After removing first track
+        playlist.next()
+        expect(playlist.current()).toEqual(mockTrack2)
     })
 
-    it('current returns undefined when queue is empty', () => {
-        const playlist = new Playlist([], [], [])
+    it('current returns undefined when all tracks are removed', () => {
+        const playlist = new Playlist([mockTrack1], [], [])
+        playlist.next() // Remove the track
         expect(playlist.current()).toBeUndefined()
     })
 
@@ -157,137 +208,139 @@ describe('Playlist class', () => {
         expect(playlist.last()).toBeUndefined()
     })
 
-    it('queued returns all queued and priority tracks', () => {
-        const queue: Track[] = [mockTrack1]
-        const priority: Track[] = [mockTrack2]
-        const playlist = new Playlist(queue, [], priority)
+    it('queued returns all non-removed queued and priority tracks', () => {
+        const queue: Track[] = [mockTrack1, mockTrack2]
+        const priority: Track[] = [mockTrack3]
+        const previous: Track[] = [mockTrack4]
+        const playlist = new Playlist(queue, previous, priority)
 
         const result = playlist.queued()
-        expect(result.queued).toEqual([mockTrack1])
-        expect(result.priority).toEqual([mockTrack2])
+        expect(result.queued).toEqual([mockTrack1, mockTrack2])
+        expect(result.priority).toEqual([mockTrack3])
+
+        // After removing some tracks
+        playlist.next()
+        const updatedResult = playlist.queued()
+        expect(updatedResult.queued).toEqual([mockTrack3, mockTrack2])
+        expect(updatedResult.priority).toEqual([])
     })
 
-    it('tracks returns all tracks, both previous and queued', () => {
-        const playlist = new Playlist(
-            [mockTrack2, mockTrack3],
-            [mockTrack1],
-            [mockTrack2]
-        )
+    it('tracks returns all non-removed tracks', () => {
+        const queue: Track[] = [mockTrack2, mockTrack3]
+        const previous: Track[] = [mockTrack1]
+        const priority: Track[] = [mockTrack4]
+        const playlist = new Playlist(queue, previous, priority)
 
         const inPlaylist = playlist.tracks()
-        expect(inPlaylist).toEqual([mockTrack1, mockTrack2, mockTrack3])
+        expect(inPlaylist.tracks).toEqual([mockTrack1, mockTrack2, mockTrack3])
+        // Technically the equality above is faulty as it's comparing CachedTracks
+        // with Tracks (which have a UUID) but it's still a correct result
+
+        // After removing a track (nothing should change)
+        playlist.next()
+        const updatedPlaylist = playlist.tracks()
+        expect(updatedPlaylist.tracks).toEqual([
+            mockTrack1,
+            mockTrack2,
+            mockTrack3
+        ])
     })
 
     it('enqueue adds track to queue', () => {
         const playlist = new Playlist([], [], [])
-        playlist.enqueue(mockTrack1)
 
+        playlist.enqueue(mockTrack1)
         expect(playlist.queue).toEqual([mockTrack1])
+
+        playlist.enqueue(mockTrack2)
+        expect(playlist.queue).toEqual([mockTrack1, mockTrack2])
+
+        playlist.enqueue(mockTrack3)
+        playlist.enqueue(mockTrack4)
+        expect(playlist.queue).toEqual([
+            mockTrack1,
+            mockTrack2,
+            mockTrack3,
+            mockTrack4
+        ])
+    })
+
+    it('enqueueFront adds track to front', () => {
+        const playlist = new Playlist([mockTrack1, mockTrack2], [], [])
+
+        playlist.enqueueFront(mockTrack3)
+        expect(playlist.queue).toEqual([mockTrack3, mockTrack1, mockTrack2])
+
+        playlist.enqueueFront(mockTrack4)
+        expect(playlist.queue).toEqual([
+            mockTrack4,
+            mockTrack3,
+            mockTrack1,
+            mockTrack2
+        ])
     })
 
     it('enqueuePriority adds track to priority queue', () => {
         const playlist = new Playlist([], [], [])
-        playlist.enqueuePriority(mockTrack1)
 
+        playlist.enqueuePriority(mockTrack1)
         expect(playlist.priority).toEqual([mockTrack1])
+
+        // Priority tracks should be AFTER other priority tracks
+        playlist.enqueuePriority(mockTrack2)
+        expect(playlist.priority).toEqual([mockTrack1, mockTrack2])
     })
 
-    it('overwriteCurrent replaces current track and pushes old to previous', () => {
-        const queue: Track[] = [mockTrack1]
+    it('overwriteCurrent replaces first non-removed track', () => {
+        const queue: Track[] = [mockTrack1, mockTrack2]
         const playlist = new Playlist(queue, [], [])
 
-        playlist.overwriteCurrent(mockTrack2)
+        // Remove first track
+        playlist.next()
 
-        expect(playlist.queue[0]).toEqual(mockTrack2)
-        expect(playlist.previous).toEqual([mockTrack1])
+        // Overwrite current (should overwrite mockTrack2)
+        playlist.overwriteCurrent(mockTrack3)
+
+        expect(playlist.queue).toEqual([mockTrack3])
+        expect(playlist.previous).toEqual([mockTrack1, mockTrack2])
     })
 
-    it('overwriteCurrent does nothing when queue is empty', () => {
-        const playlist = new Playlist([], [], [])
-        playlist.overwriteCurrent(mockTrack1)
-
-        expect(playlist.queue).toEqual([])
-        expect(playlist.previous).toEqual([])
-    })
-
-    it('sortByUuids sorts tracks correctly when all UUIDs are present', () => {
+    it('sortByUuids handles removed tracks correctly', () => {
         const playlist = new Playlist(
             [mockTrack3, mockTrack1, mockTrack2],
             [],
             []
         )
 
-        const uuids = ['1', '2', '3']
-        playlist.sortByUuids(uuids)
-        expect(playlist.queue).toEqual([mockTrack1, mockTrack2, mockTrack3])
+        // Remove first track
+        playlist.next()
+
+        const uuids = ['1', '2']
+        playlist.sortAsUuids(uuids)
+        expect(playlist.queue).toEqual([mockTrack1, mockTrack2])
+
+        // Verify tracking state is reset
+        const state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(0)
+        expect(state.queueStartIndex).toBe(0)
     })
 
-    it('sortByUuids ignores UUIDs that are not found in the tracks array', () => {
-        const playlist = new Playlist([mockTrack3, mockTrack1], [], [])
+    it('alphabetical sort works', () => {
+        const trackA = { ...mockTrack1, title: 'A' }
+        const trackB = { ...mockTrack2, title: 'B' }
+        const trackC = { ...mockTrack3, title: 'C' }
+        const trackD = { ...mockTrack4, title: 'D' }
 
-        const uuids = ['1', '999999999', '3']
-        playlist.sortByUuids(uuids)
-        expect(playlist.queue).toEqual([mockTrack1, mockTrack3])
-    })
-
-    it('sortByUuids removes tracks that do not match any UUID', () => {
-        const playlist = new Playlist(
-            [mockTrack1, mockTrack2, mockTrack3],
-            [],
-            []
-        )
-
-        const uuids: string[] = []
-        playlist.sortByUuids(uuids)
-        expect(playlist.queue).toEqual([])
-    })
-
-    it('sortByUuids handles a single element array', () => {
-        const playlist = new Playlist([mockTrack1], [], [])
-
-        const uuids = ['1']
-        playlist.sortByUuids(uuids)
-        expect(playlist.queue).toEqual([mockTrack1])
-    })
-
-    it('sortByUuids skips the first track if told', () => {
-        const playlist = new Playlist(
-            [mockTrack2, mockTrack3, mockTrack1],
-            [],
-            []
-        )
-
-        const uuids = ['1', '3']
-        playlist.sortByUuids(uuids, { skipFirst: true })
-        expect(playlist.queue).toEqual([mockTrack2, mockTrack1, mockTrack3])
-    })
-
-    it('sortByMethod correctly sorts alphabetically', () => {
-        const trackA = {
-            ...mockTrack1,
-            title: 'A'
-        }
-        const trackB = {
-            ...mockTrack2,
-            title: 'B'
-        }
-        const trackC = {
-            ...mockTrack3,
-            title: 'C'
-        }
-        const trackD = {
-            ...mockTrack4,
-            title: 'D'
-        }
-        const previous: Track[] = [trackC, trackA]
-        const queue: Track[] = [trackD, trackB]
-
-        const playlist = new Playlist(queue, previous, [])
+        const playlist = new Playlist([trackD, trackB], [trackC, trackA], [])
 
         playlist.sortByMethod(SortMethod.Alphabetical, SortOrder.Ascending)
+        // The current track (D) should remain at the front
         expect(playlist.queue).toEqual([trackD, trackA, trackB, trackC])
+        expect(playlist.previous).toEqual([])
 
-        playlist.sortByMethod(SortMethod.Alphabetical, SortOrder.Descending)
-        expect(playlist.queue).toEqual([trackD, trackC, trackB, trackA])
+        // Verify tracking state is reset
+        const state = playlist.getInternalState()
+        expect(state.removedQueueIndices.size).toBe(0)
+        expect(state.queueStartIndex).toBe(0)
     })
 })

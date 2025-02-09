@@ -4,7 +4,7 @@
         UPDATE_TRACKS,
         type TrackActionPayload
     } from '$lib/events'
-    import type { Player } from '$lib/state.svelte'
+    import type { Player } from '$lib/state/player.svelte'
     import {
         appState,
         MUTE_SETTING,

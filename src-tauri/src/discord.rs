@@ -307,10 +307,19 @@ async fn create_playlist(
     let data = ctx.data.read().await;
     let queue = data.get::<QueueKey>().expect("Guaranteed to exist");
 
-    queue.stop();
-    // Wait a few milliseconds to let the frontend process the events fired by stopping the queue
+    // Skip the current track to end it and trigger a proper TrackEnd
+    drop(queue.skip());
+    // Then tell the frontend to ignore the remaining TrackEnds
+    let current_number_of_tracks = queue.len() + queue.len_priority();
+    app.emit(
+        UPDATE_PLAYER,
+        json!({ "skipRemoveOnEnd": current_number_of_tracks }),
+    )
+    .unwrap();
+    // Wait a few milliseconds to let the frontend process the event
     sleep(Duration::from_millis(50)).await;
-    app.emit(QUEUE_EMPTIED, ()).unwrap();
+    // Then stop the queue
+    queue.stop();
 
     let mut tracks_data = payload.tracksData;
     if payload.shuffle {
@@ -348,8 +357,6 @@ async fn create_playlist(
     }
     let out = serde_json::to_value(&response_tracks).unwrap();
     let res = json!({ "tracks": out });
-    // Sleep for a short time to guarantee that the QUEUE_EMPTIED event will be processed first
-    sleep(Duration::from_millis(50)).await;
     app.emit(PLAYLIST_CREATED, res).unwrap();
 }
 

@@ -24,11 +24,11 @@
     } from '$lib/events'
     import ContextMenu from './popovers/ContextMenu.svelte'
     import { Layers, Plus, Replace, TagIcon } from 'lucide-svelte'
-    import { LoopState } from './state.svelte'
     import { getCover, permuteTracks } from './utils/utils'
     import { onDestroy, onMount } from 'svelte'
     import TagEditor from './popovers/TagEditor.svelte'
     import TagChip from './utils/TagChip.svelte'
+    import { LoopState } from './state/player.svelte'
 
     interface Props {
         track: CachedTrack
@@ -64,6 +64,7 @@
             track,
             tracks.filter((mt) => mt.visible).map((mt) => mt.track)
         ) as CachedTrack[]
+        console.log('Permuted tracks')
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
             tracksData: tracksToSend,
@@ -71,12 +72,16 @@
             loopFirst: appState.player.loopState === LoopState.LoopTrack,
             shuffle: appState.player.shuffle
         } satisfies CreatePlaylistPayload)
+        console.log('CREATE_PLAYLIST event emitted')
     }
 
     async function addToQueue(method: QueueMethod) {
         if (!appState.offline) {
-            if (appState.playlist.current()) {
-                skipRemoveOnEnd.skip = method === QueueMethod.OverwriteCurrent
+            if (
+                appState.playlist.current() &&
+                method === QueueMethod.OverwriteCurrent
+            ) {
+                skipRemoveOnEnd.toSkip += 1
             }
             await emit(QUEUE_TRACK, {
                 guildId: appState.guildId,

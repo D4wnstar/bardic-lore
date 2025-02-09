@@ -1,5 +1,12 @@
-import { TrackSet, TagSet, TagGroupSet } from '$lib/state.svelte'
-import type { CachedTrack, Tag, TagGroup } from '$lib/types'
+import { TagGroupSet } from '$lib/state/taggroupset.svelte'
+import { TagSet } from '$lib/state/tagset.svelte'
+import { TrackSet } from '$lib/state/trackset.svelte'
+import {
+    DEFAULT_GROUP,
+    type CachedTrack,
+    type Tag,
+    type TagGroup
+} from '$lib/types'
 import { describe, it, expect, beforeEach } from 'vitest'
 
 describe('TagSet', () => {
@@ -25,11 +32,20 @@ describe('TagSet', () => {
             filename: 'filename2.mp3'
         }
 
-        rockTag = { value: 'Rock', owners: new TrackSet([owner1]) }
-        jazzTag = { value: 'Jazz', owners: new TrackSet([]) }
+        rockTag = {
+            value: 'Rock',
+            owners: new TrackSet([owner1]),
+            group: DEFAULT_GROUP
+        }
+        jazzTag = {
+            value: 'Jazz',
+            owners: new TrackSet([]),
+            group: DEFAULT_GROUP
+        }
         popTag = {
             value: 'Pop',
-            owners: new TrackSet([owner1, owner2])
+            owners: new TrackSet([owner1, owner2]),
+            group: DEFAULT_GROUP
         }
     })
 
@@ -64,7 +80,11 @@ describe('TagSet', () => {
             album: 'Album 3',
             filename: 'filename3.flac'
         }
-        tagSet.addOwners({ value: 'Rock', owners: new TrackSet([newOwner]) })
+        tagSet.addOwners({
+            value: 'Rock',
+            owners: new TrackSet([newOwner]),
+            group: DEFAULT_GROUP
+        })
         expect(tagSet.get('Rock')?.owners.tracks).toEqual([owner1, newOwner])
         expect(tagSet.get('Pop')?.owners.tracks).toEqual([owner1, owner2])
         expect(tagSet.get('Jazz')?.owners.tracks).toEqual([])
@@ -72,7 +92,11 @@ describe('TagSet', () => {
 
     it('should delete owners from an existing tag', () => {
         const tagSet = new TagSet([rockTag, popTag, jazzTag])
-        tagSet.deleteOwners({ value: 'Pop', owners: new TrackSet([owner1]) })
+        tagSet.deleteOwners({
+            value: 'Pop',
+            owners: new TrackSet([owner1]),
+            group: DEFAULT_GROUP
+        })
         expect(tagSet.get('Rock')?.owners.tracks).toEqual([owner1])
         expect(tagSet.get('Pop')?.owners.tracks).toEqual([owner2])
         expect(tagSet.get('Jazz')?.owners.tracks).toEqual([])
@@ -280,12 +304,34 @@ describe('TagGroupSet', () => {
             filename: 'filename2.mp3'
         }
 
-        rockTag = { value: 'Rock', owners: new TrackSet([track1]) }
-        jazzTag = { value: 'Jazz', owners: new TrackSet([track2]) }
-        popTag = { value: 'Pop', owners: new TrackSet([]) }
+        rockTag = {
+            value: 'Rock',
+            owners: new TrackSet([track1]),
+            group: 'Group 1'
+        }
+        jazzTag = {
+            value: 'Jazz',
+            owners: new TrackSet([track2]),
+            group: 'Group 1'
+        }
+        popTag = {
+            value: 'Pop',
+            owners: new TrackSet([]),
+            group: 'Group 2'
+        }
 
-        group1 = { name: 'Group 1', tagSet: new TagSet([rockTag, jazzTag]) }
-        group2 = { name: 'Group 2', tagSet: new TagSet([popTag]) }
+        group1 = {
+            name: 'Group 1',
+            tagSet: new TagSet([rockTag, jazzTag]),
+            builtin: false,
+            modifiable: true
+        }
+        group2 = {
+            name: 'Group 2',
+            tagSet: new TagSet([popTag]),
+            builtin: false,
+            modifiable: true
+        }
     })
 
     it('should initialize with given groups', () => {
@@ -308,7 +354,11 @@ describe('TagGroupSet', () => {
 
     it('should add a tag to a group', () => {
         const tagGroupSet = new TagGroupSet([group1, group2])
-        const newTag: Tag = { value: 'New Tag', owners: new TrackSet([]) }
+        const newTag: Tag = {
+            value: 'New Tag',
+            owners: new TrackSet([]),
+            group: DEFAULT_GROUP
+        }
         tagGroupSet.addTag('Group 1', newTag)
 
         const addedTag = tagGroupSet.get('Group 1')?.tagSet.get('New Tag')
@@ -328,7 +378,8 @@ describe('TagGroupSet', () => {
         }
         tagGroupSet.addTagOwners('Group 1', {
             value: 'Rock',
-            owners: new TrackSet([newOwner])
+            owners: new TrackSet([newOwner]),
+            group: DEFAULT_GROUP
         })
         expect(
             tagGroupSet.get('Group 1')?.tagSet.get('Rock')?.owners.tracks
@@ -345,7 +396,8 @@ describe('TagGroupSet', () => {
         const tagGroupSet = new TagGroupSet([group1, group2])
         tagGroupSet.deleteTagOwners('Group 1', {
             value: 'Rock',
-            owners: new TrackSet([track1])
+            owners: new TrackSet([track1]),
+            group: DEFAULT_GROUP
         })
         expect(
             tagGroupSet.get('Group 1')?.tagSet.get('Rock')?.owners.tracks

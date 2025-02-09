@@ -9,8 +9,8 @@
     import { onMount } from 'svelte'
     import type { CachedTrack } from './types'
     import { settings } from './stores.svelte'
-    import { TagSet } from './state.svelte'
     import ButtonWithTooltip from './popovers/ButtonWithTooltip.svelte'
+    import { TagSet } from './state/tagset.svelte'
 
     interface Props {
         addTrack: (track: CachedTrack) => void

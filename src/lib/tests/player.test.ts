@@ -1,5 +1,5 @@
+import { LoopState, Player } from '$lib/state/player.svelte'
 import { describe, beforeEach, it, expect } from 'vitest'
-import { LoopState, Player } from '../state.svelte'
 
 describe('Player tests', () => {
     let player: Player

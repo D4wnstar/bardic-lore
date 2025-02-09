@@ -460,6 +460,14 @@ impl TrackQueue {
         inner.tracks.len()
     }
 
+    /// Returns the number of priority tracks currently in the queue.
+    #[must_use]
+    pub fn len_priority(&self) -> usize {
+        let inner = self.inner.lock();
+
+        inner.priority.len()
+    }
+
     /// Returns whether there are no tracks currently in the main queue, not counting priority tracks.
     #[must_use]
     pub fn is_empty(&self) -> bool {

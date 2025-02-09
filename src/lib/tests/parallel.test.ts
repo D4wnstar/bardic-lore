@@ -1,4 +1,5 @@
-import { LoopState, Parallel, Player } from '$lib/state.svelte'
+import { Parallel } from '$lib/state/parallel.svelte'
+import { LoopState, Player } from '$lib/state/player.svelte'
 import type { Track } from '$lib/types'
 import { beforeEach, describe, expect, it } from 'vitest'
 

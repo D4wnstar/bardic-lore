@@ -25,9 +25,10 @@
     import { Folder, Wind } from 'lucide-svelte'
     import { createDiscordClient, rgbToHex } from '$lib/utils/utils'
     import { fade } from 'svelte/transition'
-    import { TagSet, TrackSet } from '$lib/state.svelte'
     import Fuse from 'fuse.js'
     import VirtualList from '$lib/utils/VirtualList.svelte'
+    import { TrackSet } from '$lib/state/trackset.svelte'
+    import { TagSet } from '$lib/state/tagset.svelte'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')

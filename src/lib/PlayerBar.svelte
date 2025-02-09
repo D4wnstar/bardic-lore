@@ -27,8 +27,9 @@
     import VolumeSlider from './utils/VolumeSlider.svelte'
     import TrackProgressBar from './utils/TrackProgressBar.svelte'
     import { rgbToHex } from './utils/utils'
-    import { LoopState, SortMethod, SortOrder } from './state.svelte'
     import { load } from '@tauri-apps/plugin-store'
+    import { LoopState } from './state/player.svelte'
+    import { SortMethod, SortOrder } from './state/playlist.svelte'
 
     async function handleBackSkip() {
         if (appState.playlist.isEmpty()) {

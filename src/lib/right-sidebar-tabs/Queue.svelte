@@ -8,8 +8,8 @@
     import { rgbToHex } from '$lib/utils/utils'
 
     let tabState = $state('queue')
-    let queued = $derived(appState.playlist.queued().queued)
-    let priority = $derived(appState.playlist.queued().priority)
+    let queued = $derived(appState.playlist.queue)
+    let priority = $derived(appState.playlist.priority)
 
     const maxTracksShown = 20
 
@@ -100,7 +100,9 @@
                 {/if}
             </Tabs.Panel>
             <Tabs.Panel value="recent" classes="space-y-2 pb-5">
-                {#each appState.recentlyPlayed.slice(0, maxTracksShown) as track (track)}
+                {#each appState.recentlyPlayed
+                    .slice(0, maxTracksShown)
+                    .toReversed() as track (track)}
                     <div animate:flip={{ duration: 300 }}>
                         <QueuedTrack {track} />
                     </div>

@@ -1,4 +1,5 @@
-import type { TagSet, TrackSet } from './state.svelte'
+import type { TagSet } from './state/tagset.svelte'
+import type { TrackSet } from './state/trackset.svelte'
 
 /**
  * Information about an audio source and its state.

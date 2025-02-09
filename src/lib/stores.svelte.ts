@@ -3,14 +3,11 @@
 // persistent storage.
 
 import { SvelteMap } from 'svelte/reactivity'
-import {
-    LoopState,
-    Parallel,
-    Player,
-    Playlist,
-    TagGroupSet
-} from './state.svelte'
 import { type Track } from './types'
+import { LoopState, Player } from './state/player.svelte'
+import { Parallel } from './state/parallel.svelte'
+import { Playlist } from './state/playlist.svelte'
+import { TagGroupSet } from './state/taggroupset.svelte'
 
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
@@ -134,7 +131,7 @@ export const settings: Settings = $state({
  * Used to skip removing the current track on the next TRACK_ENDED signal.
  * Will be set to false on the next TRACK_ENDED.
  */
-export const skipRemoveOnEnd = $state({ skip: false })
+export const skipRemoveOnEnd = $state({ toSkip: 0 })
 
 /**
  * Stores cover image blob URLs so that they can be shared between images.

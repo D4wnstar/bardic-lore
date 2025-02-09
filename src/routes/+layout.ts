@@ -38,7 +38,6 @@ import {
     QUEUE_SORTED,
     QueueMethod
 } from '$lib/events'
-import { LoopState, Player, TagSet, TrackSet } from '$lib/state.svelte'
 import {
     ALBUM_GROUP,
     ARTIST_GROUP,
@@ -47,6 +46,9 @@ import {
     type Track
 } from '$lib/types'
 import { listen, emit } from '@tauri-apps/api/event'
+import { TagSet } from '$lib/state/tagset.svelte'
+import { LoopState, Player } from '$lib/state/player.svelte'
+import { TrackSet } from '$lib/state/trackset.svelte'
 
 export const load = (async () => {
     // Load defaults and/or persisted states before the page loads
@@ -137,17 +139,25 @@ export const load = (async () => {
             // If there is a track to overwrite, overwrite the current track
             // otherwise push to the end of queue
             let endedTrack: Track | undefined
-            if (!skipRemoveOnEnd.skip) {
+            const before = Date.now()
+            if (skipRemoveOnEnd.toSkip === 0) {
                 let res = appState.playlist.next()
                 endedTrack = res?.justEnded
+            } else {
+                skipRemoveOnEnd.toSkip -= 1
             }
-            skipRemoveOnEnd.skip = false
 
             // Reset position
             appState.player.position = 0
             // Update recent tracks if anything was removed
             if (endedTrack) {
-                appState.recentlyPlayed.unshift(endedTrack)
+                appState.recentlyPlayed.push(endedTrack)
+            }
+            const after = Date.now()
+            if (after - before < 5) {
+                console.log(`Took less than 5 ms`)
+            } else {
+                console.log(`Took ${after - before} ms`)
             }
 
             if (!appState.playlist.isEmpty()) return
@@ -179,7 +189,7 @@ export const load = (async () => {
             )
             // Update recent tracks if anything was removed
             if (endedTrack) {
-                appState.recentlyPlayed.unshift(endedTrack)
+                appState.recentlyPlayed.push(endedTrack)
             }
         }
     })
@@ -210,6 +220,7 @@ export const load = (async () => {
         } else {
             appState.player.position =
                 ev.payload['position'] ?? appState.player.position
+            skipRemoveOnEnd.toSkip += ev.payload['skipRemoveOnEnd'] ?? 0
         }
     })
 
@@ -263,7 +274,7 @@ export const load = (async () => {
             return
         }
         // Ignore the first UUID, since it's already playing
-        appState.playlist.sortByUuids(ev.payload.uuids, {
+        appState.playlist.sortAsUuids(ev.payload.uuids, {
             skipFirst: true
         })
     })
@@ -291,7 +302,7 @@ function handleAddTrackMain(method: QueueMethod, track: Track) {
             if (appState.playlist.queue.length > 0) {
                 let overwritten = appState.playlist.overwriteCurrent(track)
                 if (overwritten) {
-                    appState.recentlyPlayed.unshift(overwritten)
+                    appState.recentlyPlayed.push(overwritten)
                 }
             } else {
                 appState.playlist.enqueue(track)
