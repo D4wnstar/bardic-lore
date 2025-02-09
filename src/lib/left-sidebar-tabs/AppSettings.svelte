@@ -1,5 +1,6 @@
 <script lang="ts">
     import {
+        appTags,
         AUTOCONNECT_SETTING,
         AUTOHIDE_SIDEBARS_SETTING,
         DARK_MODE,
@@ -10,10 +11,14 @@
         SHOW_ARTIST_TAGS,
         SHOW_COVERS_SETTING
     } from '$lib/stores.svelte'
+    import ButtonSetting from '$lib/utils/settings/ButtonSetting.svelte'
     import SwitchSetting from '$lib/utils/settings/SwitchSetting.svelte'
+    import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
+    import { invoke } from '@tauri-apps/api/core'
     import { emit } from '@tauri-apps/api/event'
+    import { open, save } from '@tauri-apps/plugin-dialog'
     import { load, Store } from '@tauri-apps/plugin-store'
-    import { onMount } from 'svelte'
+    import { getContext, onMount } from 'svelte'
 
     interface Props {
         getCachedTracks: () => Promise<void>
@@ -21,6 +26,7 @@
 
     let { getCachedTracks }: Props = $props()
     let store: Store
+    const toast: ToastContext = getContext('toast')
 
     async function darkMode(newState: boolean) {
         if (newState) {
@@ -61,16 +67,111 @@
         await getCachedTracks()
     }
 
+    async function importTags() {
+        const path = await open({
+            title: 'Import tags',
+            directory: false,
+            multiple: false,
+            filters: [
+                {
+                    name: 'JSON',
+                    extensions: ['json']
+                }
+            ]
+        })
+
+        if (!path) return
+
+        const tagsJson = await invoke<string>('load_tags', { path }).catch(
+            (e) => {
+                toast.create({
+                    title: 'Error',
+                    description: e,
+                    type: 'error'
+                })
+                console.error(e)
+            }
+        )
+
+        if (!tagsJson) {
+            const e = `Could not read tags from ${path}`
+            toast.create({
+                title: 'Error',
+                description: e,
+                type: 'error'
+            })
+            console.error(e)
+            return
+        }
+
+        try {
+            appTags.import(tagsJson, appTags)
+            await getCachedTracks()
+        } catch (e) {
+            toast.create({
+                title: 'Error',
+                //@ts-ignore
+                description: e,
+                type: 'error'
+            })
+            console.error(e)
+        }
+    }
+
+    async function exportTags() {
+        let path = await save({
+            title: 'Export tags',
+            filters: [
+                {
+                    name: 'JSON',
+                    extensions: ['json']
+                }
+            ]
+        })
+
+        if (path === null) return
+
+        // Make sure we have a JSON file
+        if (!path.toLowerCase().endsWith('.json')) {
+            path += '.json'
+        }
+
+        await invoke('save_tags', { tags: appTags.export(), path })
+            .catch((e) => {
+                toast.create({
+                    title: 'Error',
+                    description: e,
+                    type: 'error'
+                })
+                console.error(e)
+            })
+            .then(() => {
+                toast.create({
+                    title: 'Exported tags',
+                    description: 'Successfully exported tags.',
+                    type: 'info'
+                })
+                console.log(`Tags exported to ${path}`)
+            })
+
+        // The fs plugin does not seem to work (all commands infinitely await
+        // and never complete) so until the cause is found, we save from the
+        // backend. (It is not a permission problem)
+        // await writeTextFile('tags.txt', 'hello world', {
+        //     baseDir: BaseDirectory.Document
+        // })
+    }
+
     onMount(async () => {
         store = await load(SETTINGS_FILENAME)
     })
 </script>
 
-<div id="settings-sidebar" class="flex flex-col h-full min-h-0 pb-5 px-2">
+<div id="settings-sidebar" class="flex flex-col h-full min-h-0 px-2">
     <h3 class="type-scale-7 heading-font-weight text-primary-900-100 pb-2">
         Settings
     </h3>
-    <div class="space-y-6">
+    <div class="space-y-6 pb-5">
         <section class="space-y-4">
             <header class="type-scale-4">Appearance</header>
             <hr class="hr" />
@@ -119,17 +220,29 @@
             <hr class="hr" />
             <SwitchSetting
                 name="Show album tags"
-                description="If on, albums become selectable tags."
+                description="If on, albums are shown as selectable tags."
                 switchName="album-tags"
                 bind:checked={settings.showAlbumTags}
                 onCheckedChange={showAlbumTags}
             />
             <SwitchSetting
                 name="Show artist tags"
-                description="If on, artists become selectable tags."
+                description="If on, artists are shown as selectable tags."
                 switchName="artist-tags"
                 bind:checked={settings.showArtistTags}
                 onCheckedChange={showArtistTags}
+            />
+            <ButtonSetting
+                name="Import tags"
+                description="Import tags from a JSON file exported from Bardic Lore. This process is irreversible! It is recommended you export your tags first as a precaution."
+                buttonName="Import"
+                onClick={importTags}
+            />
+            <ButtonSetting
+                name="Export tags"
+                description="Export tags to a file. This will export all your tags, tag groups and information about the tracks that have them. This includes the tracks' filenames."
+                buttonName="Export"
+                onClick={exportTags}
             />
         </section>
     </div>

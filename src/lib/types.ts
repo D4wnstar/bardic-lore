@@ -43,7 +43,7 @@ export type Track = {
 }
 
 /**
- * A track with a mask flag.
+ * A track with a visibility flag.
  */
 export type MaskedTrack = {
     track: CachedTrack
@@ -89,17 +89,3 @@ export type TagGroup = {
     builtin: boolean
     modifiable: boolean
 }
-
-/**
- * The name of the default `TagGroup` that's should be guaranteed
- * to exist.
- */
-export const DEFAULT_GROUP = 'Uncategorized'
-/**
- * The name of the built-in album group.
- */
-export const ALBUM_GROUP = 'Albums'
-/**
- * The name of the built-in artist group.
- */
-export const ARTIST_GROUP = 'Artists'

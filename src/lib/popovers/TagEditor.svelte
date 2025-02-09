@@ -1,11 +1,6 @@
 <script lang="ts">
     import { appTags, TAGS_FILENAME, TAGS_SETTING } from '$lib/stores.svelte'
-    import {
-        DEFAULT_GROUP,
-        type CachedTrack,
-        type Tag,
-        type TagGroup
-    } from '$lib/types'
+    import { type CachedTrack, type Tag, type TagGroup } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { Modal, type ToastContext } from '@skeletonlabs/skeleton-svelte'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -39,7 +34,9 @@
             .toSorted((a, b) => a.name.localeCompare(b.name))
 
         // Default group should always be last (it's guaranteed to exist)
-        const defaultIndex = filtered.findIndex((g) => g.name === DEFAULT_GROUP)
+        const defaultIndex = filtered.findIndex(
+            (g) => g.name === TagGroupSet.DEFAULT_GROUP
+        )
         filtered.push(...filtered.splice(defaultIndex, 1))
 
         return new TagGroupSet(filtered)
@@ -142,7 +139,7 @@
     }
 
     async function deleteTagGroup(groupName: string) {
-        if (groupName !== DEFAULT_GROUP) {
+        if (groupName !== TagGroupSet.DEFAULT_GROUP) {
             for (const tag of appTags.get(groupName)?.tagSet ?? []) {
                 if (handleTagEdit) handleTagEdit(tag, 'remove')
             }
@@ -330,7 +327,7 @@
                         />
                     {:else}
                         <p class="opacity-40 self-center">
-                            {#if group.name === DEFAULT_GROUP}
+                            {#if group.name === TagGroupSet.DEFAULT_GROUP}
                                 Click on the + to add tags
                             {:else}
                                 Drag tags to change their group

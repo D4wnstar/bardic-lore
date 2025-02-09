@@ -1,16 +1,36 @@
-import {
-    type TagGroup,
-    type Tag,
-    type CachedTrack,
-    DEFAULT_GROUP
-} from '$lib/types'
+import { type TagGroup, type Tag } from '$lib/types'
 import { TagSet } from './tagset.svelte'
+import { TrackSet } from './trackset.svelte'
+
+/**
+ * A list of properties to identify a track.
+ */
+export type TrackIdentifiers = {
+    title?: string
+    album?: string
+    artist?: string
+    filename: string
+}
 
 /**
  * A hacky """`Set`""" to keep `TagGroups`s and their contained tags unique.
  */
 export class TagGroupSet {
     #groups: TagGroup[] = $state([])
+
+    /**
+     * The name of the default `TagGroup` that's should be guaranteed
+     * to exist.
+     */
+    static DEFAULT_GROUP = 'Uncategorized'
+    /**
+     * The name of the built-in album group.
+     */
+    static ALBUM_GROUP = 'Albums'
+    /**
+     * The name of the built-in artist group.
+     */
+    static ARTIST_GROUP = 'Artists'
 
     constructor(groups: TagGroup[]) {
         this.#groups = groups
@@ -28,12 +48,20 @@ export class TagGroupSet {
         return this.#groups.some((g) => g.name === group.name)
     }
 
+    /**
+     * Add a new group into the set. Does nothing if the group already exists.
+     * @param group The TagGroup to add
+     */
     add(group: TagGroup) {
         if (!this.has(group)) {
             this.#groups.push(group)
         }
     }
 
+    /**
+     * Delete a group from the set. Does nothing if the group doesn't exists.
+     * @param group The TagGroup to delete
+     */
     delete(groupName: string) {
         this.#groups = this.#groups.filter((g) => g.name !== groupName)
     }
@@ -94,7 +122,7 @@ export class TagGroupSet {
     }
 
     getByTrack(
-        track: CachedTrack,
+        track: TrackIdentifiers,
         opts?: { force?: boolean; fuzzy?: boolean }
     ) {
         let totalTagSet = new TagSet([])
@@ -208,7 +236,9 @@ export class TagGroupSet {
     }
 
     sorted() {
-        const defaultGroup = this.#groups.find((g) => g.name === DEFAULT_GROUP)
+        const defaultGroup = this.#groups.find(
+            (g) => g.name === TagGroupSet.DEFAULT_GROUP
+        )
         const customGroups = this.#groups.filter((g) => !g.builtin)
         const unmodifiableGroups = this.#groups.filter((g) => !g.modifiable)
 
@@ -219,6 +249,106 @@ export class TagGroupSet {
                 a.name.localeCompare(b.name)
             )
         ]
+    }
+
+    /**
+     * @returns A JSON string with all exported tags. Ignores unmodifiable
+     * groups like albums and artists.
+     */
+    export() {
+        const toExport = this.#groups.filter((g) => g.modifiable)
+
+        for (const group of toExport) {
+            for (const tag of group.tagSet) {
+                //@ts-expect-error We overwrite each TrackSet with an array of TrackIdentifiers
+                // in order to strip unnecessary and possibly private information (like filepaths)
+                tag.owners = tag.owners.tracks.map<TrackIdentifiers>((t) => {
+                    return {
+                        title: t.title,
+                        album: t.album,
+                        artist: t.artist,
+                        filename: t.filename
+                    }
+                })
+            }
+        }
+
+        // The exported schema is the same as a TagGroupSet but with TrackSets
+        // changed to TrackIdentifiers[]
+        return JSON.stringify(toExport, null, 2)
+    }
+
+    /**
+     * Imports tags and groups into Bardic Lore from serialized JSON.
+     * @param jsonString A string containing serialized JSON, as given by the `export` function
+     * @param appTags The TagGroupSet to import into. Intended to be the global `appTags`.
+     */
+    import(jsonString: string, appTags: TagGroupSet) {
+        const importedTagGroups: TagGroup[] = JSON.parse(jsonString)
+        // Note that JavaScript can't serialize into a functioning class,
+        // and also export() converts CachedTracks into TrackIdentifiers, so
+        // TagSets are actually just Tag[] and TrackSets are TrackIdentifiers[]
+        // TypeScript doesn't know so make sure you don't accidentally call a
+        // class function or property that doesn't exist
+
+        // Each group should be added or merged with an existing one
+        // Each tag should be added or merged with an existing one
+        // The TrackIdentifiers in each tag should be matched with a track
+        // that is currently loaded in the app. If an exact match is found, convert
+        // the identifier into that track. If there is a partial match (i.e. from fuzzy
+        // search), warn the user and give them a selection of most likely candidates.
+        // If there is no match, warn the user and ask them to match the track manually
+        // or ignore it.
+
+        // The actual user invertention logic should be somewhere in the GUI, so we
+        // return a data structure detailing what needs to be handled.
+
+        // Get a list of all current tracks
+        const globalTracks = new TrackSet([])
+        for (const group of appTags) {
+            for (const tag of group.tagSet) {
+                for (const track of tag.owners) {
+                    globalTracks.add(track)
+                }
+            }
+        }
+
+        for (const group of importedTagGroups) {
+            // Import each group into the app, starting with no tags
+            appTags.add({ ...group, tagSet: new TagSet([]) })
+
+            //@ts-expect-error JavaScript can't parse classes
+            const tags = group.tagSet as Tag[]
+            for (const partialTag of tags) {
+                // Import each tag into the new group, starting with no owners
+                appTags.addTag(group.name, {
+                    ...partialTag,
+                    owners: new TrackSet([])
+                })
+
+                //@ts-expect-error JavaScript can't parse classes
+                const owners = partialTag.owners as TrackIdentifiers[]
+                for (const ownerIds of owners) {
+                    // Try to match each owner identifier with an existing track
+                    const existingTrack = globalTracks.getByIdentifier(
+                        ownerIds,
+                        { fuzzy: true }
+                    )
+
+                    if (existingTrack) {
+                        // If one is found, add the owner to the new tag
+                        if (!existingTrack.reliable) {
+                            // TODO: Implement the mechanism for user intervention on unreliable matches
+                            console.warn(`Unreliable match on ${ownerIds}`)
+                        }
+                        appTags.addTagOwners(group.name, {
+                            ...partialTag,
+                            owners: new TrackSet([existingTrack.track])
+                        })
+                    }
+                }
+            }
+        }
     }
 
     *[Symbol.iterator]() {

@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::{File, FileType},
     hash::Hash,
-    io::Cursor,
+    io::{Cursor, Read, Write},
     path::PathBuf,
 };
 
@@ -234,7 +234,7 @@ pub async fn update_tracks_from_sources(
         }
     }
 
-    if let Some(_) = reset {
+    if reset.is_some() {
         let store = app.store(TRACKS_FILENAME)?;
         store.set(TRACKS_SETTING, serde_json::to_value(tracks_to_add.clone())?);
         store.save()?;
@@ -547,3 +547,22 @@ const MIME_TYPES: [(&str, &str); 6] = [
     ("image/webp", "webp"),
     ("image/tiff", "tiff"),
 ];
+
+/// The fs plugin does not seem to work (all commands infinitely await
+/// and never complete) so until the cause is found, we contact the filesystem
+/// from the backend. (It is not a permission problem)
+#[tauri::command]
+pub async fn save_tags(tags: &str, path: PathBuf) -> Result<(), Error> {
+    let mut file = File::create(&path)?;
+    file.write_all(tags.as_bytes())?;
+    return Ok(());
+}
+
+// See above
+#[tauri::command]
+pub async fn load_tags(path: PathBuf) -> Result<String, Error> {
+    let mut file = File::open(path)?;
+    let mut json = String::new();
+    file.read_to_string(&mut json)?;
+    return Ok(json);
+}

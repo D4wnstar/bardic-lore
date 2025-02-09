@@ -6,13 +6,7 @@
         skipRemoveOnEnd,
         virtualListTop
     } from './stores.svelte'
-    import {
-        ALBUM_GROUP,
-        ARTIST_GROUP,
-        type CachedTrack,
-        type MaskedTrack,
-        type Tag
-    } from './types'
+    import { type CachedTrack, type MaskedTrack, type Tag } from './types'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         PLAY_PARALLEL,
@@ -30,6 +24,7 @@
     import TagEditor from './popovers/TagEditor.svelte'
     import TagChip from './utils/TagChip.svelte'
     import { LoopState } from './state/player.svelte'
+    import { TagGroupSet } from './state/taggroupset.svelte'
 
     interface Props {
         track: CachedTrack
@@ -156,7 +151,7 @@
         <div class="mt-2 flex flex-wrap justify-center gap-1">
             {#each tags
                 .sorted()
-                .filter((tag) => tag.group !== ALBUM_GROUP && tag.group !== ARTIST_GROUP) as tag}
+                .filter((tag) => tag.group !== TagGroupSet.ALBUM_GROUP && tag.group !== TagGroupSet.ARTIST_GROUP) as tag}
                 <TagChip
                     {tag}
                     classes="hover:brightness-100"

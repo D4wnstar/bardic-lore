@@ -102,6 +102,9 @@ export const appState: AppState = $state({
     parallel: new Parallel([])
 })
 
+/**
+ * The set of tags and groups that the entire app should have access to.
+ */
 export const appTags = new TagGroupSet([])
 
 export type Settings = {
@@ -128,8 +131,9 @@ export const settings: Settings = $state({
 })
 
 /**
- * Used to skip removing the current track on the next TRACK_ENDED signal.
- * Will be set to false on the next TRACK_ENDED.
+ * Used to skip removing the current track on the next TRACK_ENDED signals.
+ * Each TRACK_ENDED event reduces this counter by one. Mostly useful for backskips
+ * and to avoid unnecessary processing when resetting a playlist.
  */
 export const skipRemoveOnEnd = $state({ toSkip: 0 })
 

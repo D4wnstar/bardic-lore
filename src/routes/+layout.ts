@@ -38,17 +38,12 @@ import {
     QUEUE_SORTED,
     QueueMethod
 } from '$lib/events'
-import {
-    ALBUM_GROUP,
-    ARTIST_GROUP,
-    DEFAULT_GROUP,
-    type TagGroup,
-    type Track
-} from '$lib/types'
+import { type TagGroup, type Track } from '$lib/types'
 import { listen, emit } from '@tauri-apps/api/event'
 import { TagSet } from '$lib/state/tagset.svelte'
 import { LoopState, Player } from '$lib/state/player.svelte'
 import { TrackSet } from '$lib/state/trackset.svelte'
+import { TagGroupSet } from '$lib/state/taggroupset.svelte'
 
 export const load = (async () => {
     // Load defaults and/or persisted states before the page loads
@@ -97,19 +92,19 @@ export const load = (async () => {
         appTags.add(group)
     }
     appTags.add({
-        name: DEFAULT_GROUP,
+        name: TagGroupSet.DEFAULT_GROUP,
         tagSet: new TagSet([]),
         builtin: true,
         modifiable: true
     })
     appTags.add({
-        name: ALBUM_GROUP,
+        name: TagGroupSet.ALBUM_GROUP,
         tagSet: new TagSet([]),
         builtin: true,
         modifiable: false
     })
     appTags.add({
-        name: ARTIST_GROUP,
+        name: TagGroupSet.ARTIST_GROUP,
         tagSet: new TagSet([]),
         builtin: true,
         modifiable: false

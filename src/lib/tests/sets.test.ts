@@ -1,12 +1,7 @@
 import { TagGroupSet } from '$lib/state/taggroupset.svelte'
 import { TagSet } from '$lib/state/tagset.svelte'
 import { TrackSet } from '$lib/state/trackset.svelte'
-import {
-    DEFAULT_GROUP,
-    type CachedTrack,
-    type Tag,
-    type TagGroup
-} from '$lib/types'
+import { type CachedTrack, type Tag, type TagGroup } from '$lib/types'
 import { describe, it, expect, beforeEach } from 'vitest'
 
 describe('TagSet', () => {
@@ -35,17 +30,17 @@ describe('TagSet', () => {
         rockTag = {
             value: 'Rock',
             owners: new TrackSet([owner1]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         }
         jazzTag = {
             value: 'Jazz',
             owners: new TrackSet([]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         }
         popTag = {
             value: 'Pop',
             owners: new TrackSet([owner1, owner2]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         }
     })
 
@@ -83,7 +78,7 @@ describe('TagSet', () => {
         tagSet.addOwners({
             value: 'Rock',
             owners: new TrackSet([newOwner]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         })
         expect(tagSet.get('Rock')?.owners.tracks).toEqual([owner1, newOwner])
         expect(tagSet.get('Pop')?.owners.tracks).toEqual([owner1, owner2])
@@ -95,7 +90,7 @@ describe('TagSet', () => {
         tagSet.deleteOwners({
             value: 'Pop',
             owners: new TrackSet([owner1]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         })
         expect(tagSet.get('Rock')?.owners.tracks).toEqual([owner1])
         expect(tagSet.get('Pop')?.owners.tracks).toEqual([owner2])
@@ -357,7 +352,7 @@ describe('TagGroupSet', () => {
         const newTag: Tag = {
             value: 'New Tag',
             owners: new TrackSet([]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         }
         tagGroupSet.addTag('Group 1', newTag)
 
@@ -379,7 +374,7 @@ describe('TagGroupSet', () => {
         tagGroupSet.addTagOwners('Group 1', {
             value: 'Rock',
             owners: new TrackSet([newOwner]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         })
         expect(
             tagGroupSet.get('Group 1')?.tagSet.get('Rock')?.owners.tracks
@@ -397,7 +392,7 @@ describe('TagGroupSet', () => {
         tagGroupSet.deleteTagOwners('Group 1', {
             value: 'Rock',
             owners: new TrackSet([track1]),
-            group: DEFAULT_GROUP
+            group: TagGroupSet.DEFAULT_GROUP
         })
         expect(
             tagGroupSet.get('Group 1')?.tagSet.get('Rock')?.owners.tracks

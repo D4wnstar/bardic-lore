@@ -1,5 +1,6 @@
-import type { CachedTrack, Tag } from '$lib/types'
+import type { Tag } from '$lib/types'
 import Fuse from 'fuse.js'
+import type { TrackIdentifiers } from './taggroupset.svelte'
 
 /**
  * A """`Set`""" of `Tag` objects. JavaScript does not offer deep equality
@@ -99,7 +100,7 @@ export class TagSet {
      * @returns A `TagSet` with all the found tags
      */
     getByTrack(
-        track: CachedTrack,
+        track: TrackIdentifiers,
         opts?: { force?: boolean; fuzzy?: boolean }
     ) {
         // Check if there are cached tags under the owner's path
@@ -112,13 +113,7 @@ export class TagSet {
         for (const tag of this.#tags) {
             // For every tag, check if the given owner owns it
             for (const tagOwner of tag.owners) {
-                // 1. Check by path
-                if (tagOwner.path === track.path) {
-                    foundTags.add(tag)
-                    break
-                }
-
-                // 2. Check by title and album, if they exist
+                // 1. Check by title and album, if they exist
                 if (
                     track.title &&
                     track.album &&
@@ -129,7 +124,7 @@ export class TagSet {
                     break
                 }
 
-                // 3. Check by title and artist, if they exist
+                // 2. Check by title and artist, if they exist
                 if (
                     track.title &&
                     track.artist &&
@@ -140,13 +135,13 @@ export class TagSet {
                     break
                 }
 
-                // 4. Check by title only, if it exists
+                // 3. Check by title only, if it exists
                 if (track.title && tagOwner.title === track.title) {
                     foundTags.add(tag)
                     break
                 }
 
-                // 5. Check by title only, if it exists, with fuzzy matching
+                // 4. Check by title only, if it exists, with fuzzy matching
                 if (track.title && opts?.fuzzy) {
                     const fuseTitle = new Fuse([tagOwner], {
                         keys: ['title'],
@@ -158,13 +153,13 @@ export class TagSet {
                     }
                 }
 
-                // 6. Check by filename
+                // 5. Check by filename
                 if (tagOwner.filename === track.filename) {
                     foundTags.add(tag)
                     break
                 }
 
-                // 7. Check by filename, with fuzzy matching
+                // 6. Check by filename, with fuzzy matching
                 if (opts?.fuzzy) {
                     const fuseFilename = new Fuse([tagOwner], {
                         keys: ['filename'],

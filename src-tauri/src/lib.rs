@@ -65,6 +65,8 @@ pub async fn run() {
             files::update_audio_source,
             files::delete_audio_source,
             files::update_tracks_from_sources,
+            files::save_tags,
+            files::load_tags,
             discord::create_discord_client,
             discord::is_bot_connected,
         ])

@@ -3,13 +3,7 @@
     import RightSidebar from '$lib/RightSidebar.svelte'
     import PlayerBar from '$lib/PlayerBar.svelte'
     import LeftSidebar from '$lib/LeftSidebar.svelte'
-    import {
-        ALBUM_GROUP,
-        ARTIST_GROUP,
-        type CachedTrack,
-        type MaskedTrack,
-        type Tag
-    } from '$lib/types'
+    import { type CachedTrack, type MaskedTrack, type Tag } from '$lib/types'
     import {
         appTags,
         settings,
@@ -29,6 +23,7 @@
     import VirtualList from '$lib/utils/VirtualList.svelte'
     import { TrackSet } from '$lib/state/trackset.svelte'
     import { TagSet } from '$lib/state/tagset.svelte'
+    import { TagGroupSet } from '$lib/state/taggroupset.svelte'
 
     let iconColor = rgbToHex(
         getComputedStyle(document.body).getPropertyValue('--color-surface-500')
@@ -45,16 +40,16 @@
             (await store.get<CachedTrack[]>(TRACKS_SETTING)) ?? []
 
         // Reset album and artist groups to refresh tags based on available tracks
-        appTags.delete(ALBUM_GROUP)
+        appTags.delete(TagGroupSet.ALBUM_GROUP)
         appTags.add({
-            name: ALBUM_GROUP,
+            name: TagGroupSet.ALBUM_GROUP,
             tagSet: new TagSet([]),
             builtin: true,
             modifiable: false
         })
-        appTags.delete(ARTIST_GROUP)
+        appTags.delete(TagGroupSet.ARTIST_GROUP)
         appTags.add({
-            name: ARTIST_GROUP,
+            name: TagGroupSet.ARTIST_GROUP,
             tagSet: new TagSet([]),
             builtin: true,
             modifiable: false
@@ -75,12 +70,12 @@
                     const newTag: Tag = {
                         value: track.album,
                         owners: new TrackSet([track]),
-                        group: ALBUM_GROUP
+                        group: TagGroupSet.ALBUM_GROUP
                     }
                     if (appTags.getTag(track.album)) {
-                        appTags.addTagOwners(ALBUM_GROUP, newTag)
+                        appTags.addTagOwners(TagGroupSet.ALBUM_GROUP, newTag)
                     } else {
-                        appTags.addTag(ALBUM_GROUP, newTag)
+                        appTags.addTag(TagGroupSet.ALBUM_GROUP, newTag)
                     }
                 }
 
@@ -88,12 +83,12 @@
                     const newTag: Tag = {
                         value: track.artist,
                         owners: new TrackSet([track]),
-                        group: ARTIST_GROUP
+                        group: TagGroupSet.ARTIST_GROUP
                     }
                     if (appTags.getTag(track.artist)) {
-                        appTags.addTagOwners(ARTIST_GROUP, newTag)
+                        appTags.addTagOwners(TagGroupSet.ARTIST_GROUP, newTag)
                     } else {
-                        appTags.addTag(ARTIST_GROUP, newTag)
+                        appTags.addTag(TagGroupSet.ARTIST_GROUP, newTag)
                     }
                 }
 
