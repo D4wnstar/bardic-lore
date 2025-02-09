@@ -6,7 +6,8 @@
         TRACK_ENDED,
         type TrackEventPayload
     } from '$lib/events'
-    import { LoopState, type ParallelState } from '$lib/state.svelte'
+    import type { ParallelState } from '$lib/state/parallel.svelte'
+    import { LoopState } from '$lib/state/player.svelte'
     import { appState } from '$lib/stores.svelte'
     import TrackProgressBar from '$lib/utils/TrackProgressBar.svelte'
     import { getCover, rgbToHex } from '$lib/utils/utils'
@@ -123,7 +124,14 @@
             {/if}
         </div>
         <div class="flex flex-col justify-center pb-1 pt-2 pl-1 pr-4">
-            <p class="line-clamp-1">{parallelState.track.title}</p>
+            <p
+                class={{
+                    'line-clamp-1': parallelState.track.album,
+                    'line-clamp-2': !parallelState.track.album
+                }}
+            >
+                {parallelState.track.title}
+            </p>
             {#if parallelState.track.album}
                 <p class="opacity-50 line-clamp-1">
                     {parallelState.track.album}
