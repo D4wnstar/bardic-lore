@@ -51,65 +51,77 @@ export class TrackSet {
         return newSet
     }
 
-    getByIdentifier(
-        id: TrackIdentifiers,
-        opts?: { force?: boolean; fuzzy?: boolean }
-    ) {
+    getByIdentifier(id: TrackIdentifiers, opts?: { fuzzy?: boolean }) {
         for (const track of this.#tracks) {
+            const log = (type: string) => {
+                console.debug('Matched with:', type)
+                console.debug('- ID:', id)
+                console.debug('- TRACK:', $state.snapshot(track))
+            }
             // Good, exact matches are marked as reliable
             let reliable = true
 
             // 1. Check by title and album, if they exist
             if (
+                id.title &&
                 track.title &&
+                id.album &&
                 track.album &&
                 id.title === track.title &&
                 id.album === track.album
             ) {
+                log('Title+Album')
                 return { track, reliable }
             }
 
             // 2. Check by title and artist, if they exist
             if (
+                id.title &&
                 track.title &&
+                id.artist &&
                 track.artist &&
                 id.title === track.title &&
                 id.artist === track.artist
             ) {
+                log('Title+Artist')
                 return { track, reliable }
             }
 
             reliable = false
             // 3. Check by title only, if it exists
-            if (track.title && id.title === track.title) {
+            if (id.title && track.title && id.title === track.title) {
+                log('Title Exact')
                 return { track, reliable }
             }
 
             // 4. Check by title only, if it exists, with fuzzy matching
-            if (track.title && opts?.fuzzy) {
-                const fuseTitle = new Fuse([id], {
+            if (id.title && track.title && opts?.fuzzy) {
+                const fuseTitle = new Fuse([track], {
                     keys: ['title'],
-                    threshold: 0.3
+                    threshold: 0.05
                 })
-                const searchResult = fuseTitle.search(track.title)
+                const searchResult = fuseTitle.search(id.title)
                 if (searchResult.length > 0) {
+                    log('Title Fuzzy')
                     return { track, reliable }
                 }
             }
 
             // 5. Check by filename
             if (id.filename === track.filename) {
+                log('Filename Exact')
                 return { track, reliable }
             }
 
             // 6. Check by filename, with fuzzy matching
             if (opts?.fuzzy) {
-                const fuseFilename = new Fuse([id], {
+                const fuseFilename = new Fuse([track], {
                     keys: ['filename'],
-                    threshold: 0.1
+                    threshold: 0.05
                 })
-                const searchResult = fuseFilename.search(track.filename)
+                const searchResult = fuseFilename.search(id.filename)
                 if (searchResult.length > 0) {
+                    log('Filename Fuzzy')
                     return { track, reliable }
                 }
             }

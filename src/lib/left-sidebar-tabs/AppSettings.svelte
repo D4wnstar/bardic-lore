@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { TrackSet } from '$lib/state/trackset.svelte'
     import {
         appTags,
         AUTOCONNECT_SETTING,
@@ -9,8 +10,11 @@
         SETTINGS_FILENAME,
         SHOW_ALBUM_TAGS,
         SHOW_ARTIST_TAGS,
-        SHOW_COVERS_SETTING
+        SHOW_COVERS_SETTING,
+        TAGS_FILENAME,
+        TAGS_SETTING
     } from '$lib/stores.svelte'
+    import type { CachedTrack } from '$lib/types'
     import ButtonSetting from '$lib/utils/settings/ButtonSetting.svelte'
     import SwitchSetting from '$lib/utils/settings/SwitchSetting.svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
@@ -22,10 +26,12 @@
 
     interface Props {
         getCachedTracks: () => Promise<void>
+        tracks: CachedTrack[]
     }
 
-    let { getCachedTracks }: Props = $props()
-    let store: Store
+    let { getCachedTracks, tracks }: Props = $props()
+    let settingsStore: Store
+    let tagsStore: Store
     const toast: ToastContext = getContext('toast')
 
     async function darkMode(newState: boolean) {
@@ -35,35 +41,35 @@
             document.documentElement.classList.remove('dark')
         }
 
-        store.set(DARK_MODE, newState)
+        settingsStore.set(DARK_MODE, newState)
     }
 
     async function showCovers(newState: boolean) {
-        store.set(SHOW_COVERS_SETTING, newState)
+        settingsStore.set(SHOW_COVERS_SETTING, newState)
         // Send an event to tell SongBoxes to reload their cover
         await emit('reload-cover')
     }
 
     async function connectOnLaunch(newState: boolean) {
-        store.set(AUTOCONNECT_SETTING, newState)
+        settingsStore.set(AUTOCONNECT_SETTING, newState)
     }
 
     async function autohideSidebars(newState: boolean) {
-        store.set(AUTOHIDE_SIDEBARS_SETTING, newState)
+        settingsStore.set(AUTOHIDE_SIDEBARS_SETTING, newState)
     }
 
     async function hideOst(newState: boolean) {
-        store.set(HIDE_OST, newState)
+        settingsStore.set(HIDE_OST, newState)
         await getCachedTracks()
     }
 
     async function showAlbumTags(newState: boolean) {
-        store.set(SHOW_ALBUM_TAGS, newState)
+        settingsStore.set(SHOW_ALBUM_TAGS, newState)
         await getCachedTracks()
     }
 
     async function showArtistTags(newState: boolean) {
-        store.set(SHOW_ARTIST_TAGS, newState)
+        settingsStore.set(SHOW_ARTIST_TAGS, newState)
         await getCachedTracks()
     }
 
@@ -105,8 +111,9 @@
         }
 
         try {
-            appTags.import(tagsJson, appTags)
+            appTags.import(tagsJson, new TrackSet(tracks))
             await getCachedTracks()
+            await tagsStore.set(TAGS_SETTING, appTags)
         } catch (e) {
             toast.create({
                 title: 'Error',
@@ -163,7 +170,8 @@
     }
 
     onMount(async () => {
-        store = await load(SETTINGS_FILENAME)
+        settingsStore = await load(SETTINGS_FILENAME)
+        tagsStore = await load(TAGS_FILENAME)
     })
 </script>
 
@@ -184,7 +192,7 @@
             />
             <SwitchSetting
                 name="Show cover images"
-                description="If on, embedded covers will be shown behind the tracks. May reduce peformance."
+                description="If on, embedded covers will be shown behind the tracks. May reduce performance."
                 switchName="show-cover-images"
                 bind:checked={settings.showCovers}
                 onCheckedChange={showCovers}

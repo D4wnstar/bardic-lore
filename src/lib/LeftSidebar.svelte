@@ -17,6 +17,7 @@
         removeTrack: (track: CachedTrack) => void
         getCachedTracks: () => Promise<void>
         filterTracks: () => void
+        tracks: CachedTrack[]
         selectedTags: TagSet
         tagsMode: 'any' | 'all'
     }
@@ -26,6 +27,7 @@
         removeTrack,
         getCachedTracks,
         filterTracks,
+        tracks,
         selectedTags = $bindable(new TagSet([])),
         tagsMode = $bindable('all')
     }: Props = $props()
@@ -146,7 +148,7 @@
             {:else if tabIndex === 3}
                 <BotControls />
             {:else if tabIndex === 4}
-                <AppSettings {getCachedTracks} />
+                <AppSettings {getCachedTracks} {tracks} />
             {/if}
         </div>
     {/if}

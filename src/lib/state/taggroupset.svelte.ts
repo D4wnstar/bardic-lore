@@ -283,7 +283,7 @@ export class TagGroupSet {
      * @param jsonString A string containing serialized JSON, as given by the `export` function
      * @param appTags The TagGroupSet to import into. Intended to be the global `appTags`.
      */
-    import(jsonString: string, appTags: TagGroupSet) {
+    import(jsonString: string, currentTracks: TrackSet) {
         const importedTagGroups: TagGroup[] = JSON.parse(jsonString)
         // Note that JavaScript can't serialize into a functioning class,
         // and also export() converts CachedTracks into TrackIdentifiers, so
@@ -303,25 +303,15 @@ export class TagGroupSet {
         // The actual user invertention logic should be somewhere in the GUI, so we
         // return a data structure detailing what needs to be handled.
 
-        // Get a list of all current tracks
-        const globalTracks = new TrackSet([])
-        for (const group of appTags) {
-            for (const tag of group.tagSet) {
-                for (const track of tag.owners) {
-                    globalTracks.add(track)
-                }
-            }
-        }
-
         for (const group of importedTagGroups) {
             // Import each group into the app, starting with no tags
-            appTags.add({ ...group, tagSet: new TagSet([]) })
+            this.add({ ...group, tagSet: new TagSet([]) })
 
             //@ts-expect-error JavaScript can't parse classes
             const tags = group.tagSet as Tag[]
             for (const partialTag of tags) {
                 // Import each tag into the new group, starting with no owners
-                appTags.addTag(group.name, {
+                this.addTag(group.name, {
                     ...partialTag,
                     owners: new TrackSet([])
                 })
@@ -330,20 +320,19 @@ export class TagGroupSet {
                 const owners = partialTag.owners as TrackIdentifiers[]
                 for (const ownerIds of owners) {
                     // Try to match each owner identifier with an existing track
-                    const existingTrack = globalTracks.getByIdentifier(
-                        ownerIds,
-                        { fuzzy: true }
-                    )
+                    const result = currentTracks.getByIdentifier(ownerIds, {
+                        fuzzy: false
+                    })
 
-                    if (existingTrack) {
+                    if (result) {
                         // If one is found, add the owner to the new tag
-                        if (!existingTrack.reliable) {
+                        if (!result.reliable) {
                             // TODO: Implement the mechanism for user intervention on unreliable matches
                             console.warn(`Unreliable match on ${ownerIds}`)
                         }
-                        appTags.addTagOwners(group.name, {
+                        this.addTagOwners(group.name, {
                             ...partialTag,
-                            owners: new TrackSet([existingTrack.track])
+                            owners: new TrackSet([result.track])
                         })
                     }
                 }

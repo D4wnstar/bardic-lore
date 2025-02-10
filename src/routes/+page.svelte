@@ -203,6 +203,7 @@
         {removeTrack}
         {getCachedTracks}
         {filterTracks}
+        tracks={tracks.map((t) => t.track)}
     />
     <main class="flex flex-col p-4 min-h-0 grow">
         <div class="flex grow min-h-0">
@@ -211,6 +212,11 @@
                 {#if tracks.length > 0}
                     <VirtualList items={tracks.filter((pair) => pair.visible)}>
                         {#snippet children(pair)}
+                            <!-- <div
+                                class="card preset-tonal p-2 aspect-square w-[200px]"
+                            >
+                                {pair.track.title}
+                            </div> -->
                             {#key pair}
                                 <div transition:fade={{ duration: 100 }}>
                                     <SongBox track={pair.track} {tracks} />

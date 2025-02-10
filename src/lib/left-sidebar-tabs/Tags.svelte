@@ -140,7 +140,7 @@
     </div>
 
     <div
-        class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 mx-2 space-y-2"
+        class="flex-1 overflow-y-auto overflow-x-hidden min-h-0 mx-2 space-y-2 pb-5"
     >
         <div
             class="preset-filled-surface-100-900 !bg-opacity-50 border-[1px] border-primary-100-900 !border-opacity-70 rounded-md p-2"
