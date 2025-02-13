@@ -24,6 +24,8 @@ export type CachedTrack = {
     path: string
     filename: string
     coverHash?: string
+    visible: boolean
+    tags: TagSet
 }
 
 /**
@@ -40,6 +42,8 @@ export type Track = {
     path: string
     filename: string
     coverHash?: string
+    visible: boolean
+    tags: TagSet
 }
 
 /**

@@ -7,30 +7,14 @@
     import { fade } from 'svelte/transition'
     import { expoIn } from 'svelte/easing'
     import { onMount } from 'svelte'
-    import type { CachedTrack } from './types'
-    import { settings } from './stores.svelte'
+    import { appTracks, settings } from './stores.svelte'
     import ButtonWithTooltip from './popovers/ButtonWithTooltip.svelte'
-    import { TagSet } from './state/tagset.svelte'
 
     interface Props {
-        addTrack: (track: CachedTrack) => void
-        removeTrack: (track: CachedTrack) => void
         getCachedTracks: () => Promise<void>
-        filterTracks: () => void
-        tracks: CachedTrack[]
-        selectedTags: TagSet
-        tagsMode: 'any' | 'all'
     }
 
-    let {
-        addTrack,
-        removeTrack,
-        getCachedTracks,
-        filterTracks,
-        tracks,
-        selectedTags = $bindable(new TagSet([])),
-        tagsMode = $bindable('all')
-    }: Props = $props()
+    let { getCachedTracks }: Props = $props()
 
     let sidebarVisible: boolean = $state(true)
     let tabIndex: number = $state(1)
@@ -142,13 +126,13 @@
             }}
         >
             {#if tabIndex === 1}
-                <Tags bind:selectedTags bind:tagsMode {filterTracks} />
+                <Tags />
             {:else if tabIndex === 2}
-                <AudioSources {addTrack} {removeTrack} {getCachedTracks} />
+                <AudioSources {getCachedTracks} />
             {:else if tabIndex === 3}
                 <BotControls />
             {:else if tabIndex === 4}
-                <AppSettings {getCachedTracks} {tracks} />
+                <AppSettings {getCachedTracks} />
             {/if}
         </div>
     {/if}

@@ -8,6 +8,8 @@ import { LoopState, Player } from './state/player.svelte'
 import { Parallel } from './state/parallel.svelte'
 import { Playlist } from './state/playlist.svelte'
 import { TagGroupSet } from './state/taggroupset.svelte'
+import { TagSet } from './state/tagset.svelte'
+import { TrackSet } from './state/trackset.svelte'
 
 // All keys should be written in kebab-case.
 // This file is a direct copy of src/stores.rs file. If you need to add or change a store,
@@ -74,10 +76,11 @@ export type AppState = {
     guildId: number
     player: Player
     offline: boolean
-    searchTerm: string
     playlist: Playlist
     recentlyPlayed: Track[]
     parallel: Parallel
+    tagsMode: 'all' | 'any'
+    trackSearchTerm: string
 }
 
 /**
@@ -88,7 +91,6 @@ export type AppState = {
 export const appState: AppState = $state({
     guildId: 0,
     offline: true,
-    searchTerm: '',
     player: new Player({
         playing: false,
         position: 0,
@@ -99,13 +101,25 @@ export const appState: AppState = $state({
     }),
     playlist: new Playlist([], [], []),
     recentlyPlayed: [],
-    parallel: new Parallel([])
+    parallel: new Parallel([]),
+    tagsMode: 'all',
+    trackSearchTerm: ''
 })
 
 /**
  * The set of tags and groups that the entire app should have access to.
  */
 export const appTags = new TagGroupSet([])
+
+/**
+ * The set of currently selected tags.
+ */
+export const selectedTags = new TagSet([])
+
+/**
+ * All the tracks from the active audio sources alongside their visibility state.
+ */
+export const appTracks = new TrackSet([])
 
 export type Settings = {
     darkMode: boolean

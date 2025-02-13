@@ -1,7 +1,7 @@
 <script lang="ts">
-    import { TrackSet } from '$lib/state/trackset.svelte'
     import {
         appTags,
+        appTracks,
         AUTOCONNECT_SETTING,
         AUTOHIDE_SIDEBARS_SETTING,
         DARK_MODE,
@@ -14,7 +14,6 @@
         TAGS_FILENAME,
         TAGS_SETTING
     } from '$lib/stores.svelte'
-    import type { CachedTrack } from '$lib/types'
     import ButtonSetting from '$lib/utils/settings/ButtonSetting.svelte'
     import SwitchSetting from '$lib/utils/settings/SwitchSetting.svelte'
     import type { ToastContext } from '@skeletonlabs/skeleton-svelte'
@@ -26,10 +25,9 @@
 
     interface Props {
         getCachedTracks: () => Promise<void>
-        tracks: CachedTrack[]
     }
 
-    let { getCachedTracks, tracks }: Props = $props()
+    let { getCachedTracks }: Props = $props()
     let settingsStore: Store
     let tagsStore: Store
     const toast: ToastContext = getContext('toast')
@@ -111,7 +109,7 @@
         }
 
         try {
-            appTags.import(tagsJson, new TrackSet(tracks))
+            appTags.import(tagsJson, appTracks)
             await getCachedTracks()
             await tagsStore.set(TAGS_SETTING, appTags)
         } catch (e) {

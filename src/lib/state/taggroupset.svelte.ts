@@ -1,4 +1,4 @@
-import { type TagGroup, type Tag } from '$lib/types'
+import { type TagGroup, type Tag, type CachedTrack } from '$lib/types'
 import { TagSet } from './tagset.svelte'
 import { TrackSet } from './trackset.svelte'
 
@@ -66,8 +66,31 @@ export class TagGroupSet {
         this.#groups = this.#groups.filter((g) => g.name !== groupName)
     }
 
+    difference(other: TagGroupSet) {
+        const difference = new TagGroupSet([])
+        for (const group of other) {
+            if (this.has(group)) {
+                difference.add(group)
+                for (const tag of group.tagSet) {
+                    group.tagSet.delete(tag)
+                }
+            } else {
+                difference.add(group)
+            }
+        }
+        return difference
+    }
+
+    differenceTags(otherTags: TagSet) {
+        const difference = new TagGroupSet([])
+        this.#groups.map((g) => difference.add(g))
+        for (const tag of otherTags) {
+            difference.deleteTag(tag)
+        }
+        return difference
+    }
+
     /**
-     *
      * @param oldName The current name of the group to rename
      * @param newName The new name to give it
      * @returns `true` if renaming was successful, `false` if no group called `oldName`
@@ -101,13 +124,13 @@ export class TagGroupSet {
 
     /**
      * Get a tag by searching across all groups.
-     * @param tagText The tag to search for
+     * @param tagName The tag to search for
      * @returns A `Tag`, if any was found
      */
-    getTag(tagText: string) {
+    getTag(tagName: string) {
         let foundTag: Tag | undefined
         for (const group of this.#groups) {
-            let maybeTag = group.tagSet.get(tagText)
+            let maybeTag = group.tagSet.get(tagName)
             if (maybeTag) {
                 // Just in case, we coerce the tag's group to be the one we got it from
                 foundTag = {
@@ -121,13 +144,10 @@ export class TagGroupSet {
         return foundTag
     }
 
-    getByTrack(
-        track: TrackIdentifiers,
-        opts?: { force?: boolean; fuzzy?: boolean }
-    ) {
+    getByTrack(path: string) {
         let totalTagSet = new TagSet([])
         for (const group of this.#groups) {
-            const partialTagSet = group.tagSet.getByTrack(track, opts)
+            const partialTagSet = group.tagSet.getByTrack(path)
             // Just in case, we coerce the tag's group to be the one we got it from
             partialTagSet.tags.forEach((tag) => (tag.group = group.name))
             totalTagSet = totalTagSet.union(partialTagSet)
@@ -167,16 +187,13 @@ export class TagGroupSet {
     /**
      * Add owners to a tag in a group.
      * @param groupName The group to search the tag in
-     * @param tag The tag to use. The owners of this tag will be merged with existing ones
+     * @param tagName The tag to use. The owners of this tag will be merged with existing ones
      * @returns `true` if the group was found, `false` if it wasn't
      */
-    addTagOwners(groupName: string, tag: Tag) {
+    addTagOwners(groupName: string, tagName: string, tracks: CachedTrack[]) {
         const groupToAddTo = this.get(groupName)
         if (groupToAddTo) {
-            groupToAddTo.tagSet.addOwners({
-                ...tag,
-                group: groupToAddTo.name
-            })
+            groupToAddTo.tagSet.addOwners(tagName, tracks)
             return true
         } else {
             return false
@@ -195,7 +212,7 @@ export class TagGroupSet {
         const maybeTag = this.getTag(tag.value)
         if (maybeTag && this.get(groupName)) {
             // getTag guarantees that the group field is a string
-            this.deleteTag(maybeTag.group as string, maybeTag)
+            this.deleteTag(maybeTag, maybeTag.group as string)
             this.addTag(groupName, maybeTag)
             return true
         } else {
@@ -205,17 +222,19 @@ export class TagGroupSet {
 
     /**
      * Delete a tag from a group.
-     * @param groupName The group to delete from
      * @param tag The tag to delete
-     * @returns `true` if the group was found, `false` if it wasn't
+     * @param groupName The group to delete from. Leave empty for any group
      */
-    deleteTag(groupName: string, tag: Tag) {
-        const groupToDeleteFrom = this.get(groupName)
-        if (groupToDeleteFrom) {
-            groupToDeleteFrom.tagSet.delete(tag)
-            return true
+    deleteTag(tag: Tag, groupName?: string) {
+        if (groupName) {
+            const groupToDeleteFrom = this.get(groupName)
+            if (groupToDeleteFrom) {
+                groupToDeleteFrom.tagSet.delete(tag)
+            }
         } else {
-            return false
+            for (const group of this.#groups) {
+                group.tagSet.delete(tag)
+            }
         }
     }
 
@@ -223,15 +242,11 @@ export class TagGroupSet {
      * Delete owners from a tag in a group.
      * @param groupName The group to search the tag in
      * @param tag The tag to use. The owners of this tag will be removed from existing ones
-     * @returns `true` if the group was found, `false` if it wasn't
      */
-    deleteTagOwners(groupName: string, tag: Tag) {
+    deleteTagOwners(groupName: string, tagName: string, tracks: CachedTrack[]) {
         const groupToDeleteFrom = this.get(groupName)
         if (groupToDeleteFrom) {
-            groupToDeleteFrom.tagSet.deleteOwners(tag)
-            return true
-        } else {
-            return false
+            groupToDeleteFrom.tagSet.deleteOwners(tagName, tracks)
         }
     }
 
@@ -281,9 +296,9 @@ export class TagGroupSet {
     /**
      * Imports tags and groups into Bardic Lore from serialized JSON.
      * @param jsonString A string containing serialized JSON, as given by the `export` function
-     * @param appTags The TagGroupSet to import into. Intended to be the global `appTags`.
+     * @param tracks The tracks to match to.
      */
-    import(jsonString: string, currentTracks: TrackSet) {
+    import(jsonString: string, tracks: TrackSet) {
         const importedTagGroups: TagGroup[] = JSON.parse(jsonString)
         // Note that JavaScript can't serialize into a functioning class,
         // and also export() converts CachedTracks into TrackIdentifiers, so
@@ -320,7 +335,7 @@ export class TagGroupSet {
                 const owners = partialTag.owners as TrackIdentifiers[]
                 for (const ownerIds of owners) {
                     // Try to match each owner identifier with an existing track
-                    const result = currentTracks.getByIdentifier(ownerIds, {
+                    const result = tracks.getByIdentifier(ownerIds, {
                         fuzzy: false
                     })
 
@@ -330,10 +345,9 @@ export class TagGroupSet {
                             // TODO: Implement the mechanism for user intervention on unreliable matches
                             console.warn(`Unreliable match on ${ownerIds}`)
                         }
-                        this.addTagOwners(group.name, {
-                            ...partialTag,
-                            owners: new TrackSet([result.track])
-                        })
+                        this.addTagOwners(group.name, partialTag.value, [
+                            result.track
+                        ])
                     }
                 }
             }

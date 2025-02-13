@@ -45,6 +45,8 @@ pub struct Track {
     pub path: PathBuf,
     pub filename: String,
     pub cover_hash: Option<String>,
+    pub visible: bool,
+    pub tags: HashSet<Tag>,
 }
 
 impl PartialEq for Track {
@@ -277,6 +279,8 @@ fn make_track(
             path: path.clone(),
             filename,
             cover_hash: metadata.cover_hash,
+            visible: true,
+            tags: HashSet::new(),
         }),
         Err(err) => {
             warn!("Failed to get audio metadata for {path:?}. Error: {err}");

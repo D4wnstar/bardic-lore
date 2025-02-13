@@ -8,6 +8,7 @@
         tag: Tag
         draggable: boolean
         open: boolean
+        active: boolean
         handleDragStart: (e: any, tag: Tag) => void
         addRemoveTag: (tag: Tag, mode: 'add' | 'remove') => Promise<void>
         deleteTag: (tag: Tag) => Promise<void>
@@ -17,6 +18,7 @@
         tag,
         draggable,
         open,
+        active,
         handleDragStart,
         addRemoveTag,
         deleteTag
@@ -27,7 +29,8 @@
     <TagChip
         {tag}
         {removeBtn}
-        onclick={async () => await addRemoveTag(tag, 'add')}
+        onclick={async () => await addRemoveTag(tag, active ? 'remove' : 'add')}
+        preset={active ? 'preset-filled' : 'preset-tonal'}
     />
 </div>
 

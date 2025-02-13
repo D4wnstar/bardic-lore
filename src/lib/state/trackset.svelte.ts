@@ -1,6 +1,7 @@
 import type { CachedTrack } from '$lib/types'
 import Fuse from 'fuse.js'
 import type { TrackIdentifiers } from './taggroupset.svelte'
+import type { TagSet } from './tagset.svelte'
 
 /**
  * A hacky """`Set`""" to keep `Track`s unique.
@@ -24,6 +25,24 @@ export class TrackSet {
         return this.#tracks.some((o) => o.path === track.path)
     }
 
+    visible() {
+        return this.#tracks.filter((t) => t.visible)
+    }
+
+    /**
+     * Set the visibility of tracks in the set. The `filter` function will be ran on each track
+     * and its output determines the visibility of that track.
+     * @param filter The filter function
+     */
+    setVisibility(filter: (t: CachedTrack) => boolean) {
+        this.#tracks = this.#tracks.map((track) => {
+            return {
+                ...track,
+                visible: filter(track)
+            }
+        })
+    }
+
     add(tracks: CachedTrack) {
         if (!this.has(tracks)) {
             this.#tracks.push(tracks)
@@ -35,11 +54,7 @@ export class TrackSet {
     }
 
     difference(other: TrackSet) {
-        return new TrackSet(
-            this.#tracks.filter(
-                (track) => !other.#tracks.some((o) => track.path === o.path)
-            )
-        )
+        return new TrackSet(this.#tracks.filter((track) => !other.has(track)))
     }
 
     union(other: TrackSet) {
@@ -49,6 +64,55 @@ export class TrackSet {
         }
 
         return newSet
+    }
+
+    clear() {
+        this.#tracks = []
+    }
+
+    filter(tags: TagSet, mode: 'any' | 'all', searchTerm?: string) {
+        // First, run string similarity search with Fuse
+        const beforeSearch = Date.now()
+        let searchedTracks: CachedTrack[]
+        if (searchTerm && searchTerm.length > 0) {
+            const fuse = new Fuse(this.#tracks, {
+                keys: ['title', 'filename'],
+                threshold: 0.3
+            })
+            searchedTracks = fuse.search(searchTerm).map((res) => res.item)
+        } else {
+            searchedTracks = this.#tracks
+        }
+        const afterSearch = Date.now()
+
+        // Hide all tracks that did not match the search
+        this.difference(new TrackSet(searchedTracks)).#tracks.map(
+            (t) => (t.visible = false)
+        )
+
+        // Then remove all tracks that lack the given tags
+        const beforeTags = Date.now()
+        for (const track of searchedTracks) {
+            let foundTag = true
+            if (tags.size > 0) {
+                if (mode === 'all') {
+                    foundTag = tags.tags.every((tag) =>
+                        track.tags.has(tag.value)
+                    )
+                } else if (mode === 'any') {
+                    foundTag = tags.tags.some((tag) =>
+                        track.tags.has(tag.value)
+                    )
+                }
+            }
+
+            track.visible = foundTag
+        }
+        const afterTags = Date.now()
+
+        console.log(
+            `Title search took ${afterSearch - beforeSearch} ms, tag search took ${afterTags - beforeTags} ms`
+        )
     }
 
     getByIdentifier(id: TrackIdentifiers, opts?: { fuzzy?: boolean }) {
@@ -126,6 +190,17 @@ export class TrackSet {
                 }
             }
         }
+    }
+
+    /**
+     * Find a track by its filename. Useful as a faster alternative to `getByIdentifier`
+     * if you already know the filename exists.
+     * @param filename The filename to search for
+     */
+    getByFilename(filename: string) {
+        return this.#tracks.find((t) => {
+            return t.filename === filename
+        })
     }
 
     *[Symbol.iterator]() {

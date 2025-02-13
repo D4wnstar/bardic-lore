@@ -1,67 +1,50 @@
 <script lang="ts">
-    import { TagGroupSet } from '$lib/state/taggroupset.svelte'
-    import { TagSet } from '$lib/state/tagset.svelte'
     import {
+        appState,
         appTags,
+        appTracks,
         GROUP_ACCORDION_STATES,
+        selectedTags,
         SETTINGS_FILENAME
     } from '$lib/stores.svelte'
     import { type Tag } from '$lib/types'
     import TagChip from '$lib/utils/TagChip.svelte'
     import { load } from '@tauri-apps/plugin-store'
     import { ChevronDown, ChevronUp, Search } from 'lucide-svelte'
-    import { onMount, untrack } from 'svelte'
+    import { onMount } from 'svelte'
     import { flip } from 'svelte/animate'
-    import { quintOut } from 'svelte/easing'
     import { SvelteMap } from 'svelte/reactivity'
-    import { crossfade, slide } from 'svelte/transition'
-
-    interface Props {
-        selectedTags: TagSet
-        filterTracks: () => void
-        tagsMode: 'any' | 'all'
-    }
-
-    let {
-        tagsMode = $bindable('all'),
-        selectedTags = $bindable(new TagSet([])),
-        filterTracks
-    }: Props = $props()
+    import { fade, slide } from 'svelte/transition'
 
     let searchTerm = $state('')
-    let filteredGroups = $derived.by(() => {
-        return new TagGroupSet(
-            appTags.groups.map((g) => {
-                let set = g.tagSet.difference(selectedTags)
-
-                // The untrack is to avoid the internal state of filter
-                // Derived should still run on the search
-                searchTerm
-                set = untrack(() =>
-                    set.filter((t) =>
-                        t.value.toLowerCase().includes(searchTerm)
-                    )
-                )
-                return { ...g, tagSet: set }
-            })
-        )
-    })
 
     // svelte-ignore state_referenced_locally (It only needs to be initialized)
     let groupsOpen: SvelteMap<string, boolean> = $state(
-        new SvelteMap(filteredGroups.groups.map((g) => [g.name, false]))
+        new SvelteMap(appTags.groups.map((g) => [g.name, false]))
     )
 
     function handleAvailableClick(tag: Tag) {
-        selectedTags.add(tag)
-        filteredGroups.deleteTag(tag.group, tag)
-        filterTracks()
+        if (selectedTags.has(tag.value)) {
+            selectedTags.delete(tag)
+        } else {
+            selectedTags.add(tag)
+        }
+        // filteredGroups.deleteTag(tag, tag.group)
+        appTracks.filter(
+            selectedTags,
+            appState.tagsMode,
+            appState.trackSearchTerm
+        )
     }
 
     function handleSelectedClick(tag: Tag) {
-        filteredGroups.addTag(tag.group, tag)
+        // filteredGroups.addTag(tag.group, tag)
         selectedTags.delete(tag)
-        filterTracks()
+        appTracks.filter(
+            selectedTags,
+            appState.tagsMode,
+            appState.trackSearchTerm
+        )
     }
 
     async function openCloseTagGroup(groupName: string) {
@@ -71,24 +54,6 @@
         const store = await load(SETTINGS_FILENAME)
         await store.set(GROUP_ACCORDION_STATES, groupsOpen)
     }
-
-    const [send, receive] = crossfade({
-        duration: (d) => Math.sqrt(d * 200),
-
-        fallback(node, _params) {
-            const style = getComputedStyle(node)
-            const transform = style.transform === 'none' ? '' : style.transform
-
-            return {
-                duration: 600,
-                easing: quintOut,
-                css: (t) => `
-				transform: ${transform} scale(${t});
-				opacity: ${t}
-			`
-            }
-        }
-    })
 
     onMount(async () => {
         const store = await load(SETTINGS_FILENAME)
@@ -119,22 +84,20 @@
         <button
             class={{
                 'preset-outlined-primary-400-600 btn': true,
-                'opacity-40': tagsMode === 'any'
+                'opacity-40': appState.tagsMode === 'any'
             }}
             onclick={(_) => {
-                tagsMode = 'all'
-                filterTracks()
+                appState.tagsMode = 'all'
             }}>ALL</button
         >
         |
         <button
             class={{
                 'preset-outlined-primary-400-600 btn': true,
-                'opacity-40': tagsMode === 'all'
+                'opacity-40': appState.tagsMode === 'all'
             }}
             onclick={(_) => {
-                tagsMode = 'any'
-                filterTracks()
+                appState.tagsMode = 'any'
             }}>ANY</button
         >
     </div>
@@ -151,8 +114,7 @@
             <div class="flex flex-wrap gap-1">
                 {#each selectedTags.sorted() as tag (tag)}
                     <div
-                        in:receive={{ key: tag.value }}
-                        out:send={{ key: tag.value }}
+                        transition:fade={{ duration: 100 }}
                         animate:flip={{ duration: 100 }}
                     >
                         <TagChip
@@ -175,12 +137,12 @@
             <p class="text-secondary-700-300 mb-2">
                 <b>Available</b>
             </p>
-            {#if filteredGroups.size === 0 || filteredGroups.groups.every((g) => g.tagSet.size === 0)}
+            {#if appTags.size === 0 || appTags.groups.every((g) => g.tagSet.size === 0)}
                 <span class="opacity-40"
                     >Add tags by right clicking on tracks</span
                 >
             {:else}
-                {#each filteredGroups
+                {#each appTags
                     .sorted()
                     .filter((g) => g.tagSet.size > 0) as group (group)}
                     <button
@@ -203,8 +165,7 @@
                         >
                             {#each group.tagSet.sorted() as tag (tag)}
                                 <div
-                                    in:receive={{ key: tag.value }}
-                                    out:send={{ key: tag.value }}
+                                    transition:fade={{ duration: 100 }}
                                     animate:flip={{ duration: 100 }}
                                 >
                                     <TagChip
@@ -212,6 +173,9 @@
                                         classes="hover:opacity-70"
                                         onclick={async () =>
                                             handleAvailableClick(tag)}
+                                        preset={selectedTags.has(tag.value)
+                                            ? 'preset-filled'
+                                            : 'preset-tonal'}
                                     />
                                 </div>
                             {:else}

@@ -1,6 +1,4 @@
-import type { Tag } from '$lib/types'
-import Fuse from 'fuse.js'
-import type { TrackIdentifiers } from './taggroupset.svelte'
+import type { CachedTrack, Tag } from '$lib/types'
 
 /**
  * A """`Set`""" of `Tag` objects. JavaScript does not offer deep equality
@@ -9,10 +7,13 @@ import type { TrackIdentifiers } from './taggroupset.svelte'
  */
 export class TagSet {
     #tags: Tag[] = $state([])
-    // #byPath: SvelteMap<string, TagSet> = new SvelteMap()
+    // Cache map to store tags by track path
+    #tagsByTrack: Map<string, Tag[]> = new Map()
 
     constructor(tags: Tag[]) {
         this.#tags = tags
+        // Initialize cache for existing tags
+        this.#updateCache()
     }
 
     get tags() {
@@ -23,40 +24,86 @@ export class TagSet {
         return this.#tags.length
     }
 
-    has(tag: Tag) {
-        return this.#tags.some((t) => t.value === tag.value)
+    has(tagName: string) {
+        return this.#tags.some((t) => t.value === tagName)
     }
 
-    add(tag: Tag) {
-        if (!this.has(tag)) {
-            // If the tag doesn't exist it, add it whole
-            this.#tags.push(tag)
-        } else {
-            // If it does exist, this behaves like addOwners
-            this.addOwners(tag)
+    #updateCache() {
+        this.#tagsByTrack.clear()
+        for (const tag of this.#tags) {
+            for (const track of tag.owners) {
+                const trackTags = this.#tagsByTrack.get(track.path) ?? []
+                trackTags.push(tag)
+                this.#tagsByTrack.set(track.path, trackTags)
+            }
         }
     }
 
-    addOwners(tag: Tag) {
-        const existingTag = this.#tags.find((t) => t.value === tag.value)
+    add(tag: Tag) {
+        if (!this.has(tag.value)) {
+            // If the tag doesn't exist, add it whole
+            this.#tags.push(tag)
+            // Update the owners in return and maintain cache
+            // for (const track of tag.owners) {
+            //     track.tags.add(tag)
+            //     const trackTags = this.#tagsByTrack.get(track.path) || []
+            //     trackTags.push(tag)
+            //     this.#tagsByTrack.set(track.path, trackTags)
+            // }
+        } else {
+            // If it does exist, this behaves like addOwners
+            this.addOwners(tag.value, tag.owners.tracks)
+        }
+    }
+
+    addOwners(tagName: string, tracks: CachedTrack[]) {
+        const existingTag = this.#tags.find((t) => t.value === tagName)
         if (existingTag) {
-            // If it exists, add the owners if they don't exist
-            for (const owner of tag.owners) {
-                existingTag.owners.add(owner)
+            // If it exists, add the owners
+            for (const track of tracks) {
+                existingTag.owners.add(track)
+                // track.tags.add(existingTag)
+                // const trackTags = this.#tagsByTrack.get(track.path) ?? []
+                // if (!trackTags.some((t) => t.value === existingTag.value)) {
+                //     trackTags.push(existingTag)
+                //     this.#tagsByTrack.set(track.path, trackTags)
+                // }
             }
         }
     }
 
     delete(tag: Tag) {
+        // Remove tag from all owners' tag sets first
+        // const existingTag = this.#tags.find((t) => t.value === tag.value)
+        // if (existingTag) {
+        //     for (const owner of existingTag.owners) {
+        //         owner.tags.delete(existingTag)
+        //         const trackTags = this.#tagsByTrack.get(owner.path)
+        //         if (trackTags) {
+        //             this.#tagsByTrack.set(
+        //                 owner.path,
+        //                 trackTags.filter((t) => t.value !== tag.value)
+        //             )
+        //         }
+        //     }
+        // }
         this.#tags = this.#tags.filter((t) => t.value !== tag.value)
     }
 
-    deleteOwners(tag: Tag) {
-        const existingTag = this.#tags.find((t) => t.value === tag.value)
+    deleteOwners(tagName: string, tracks: CachedTrack[]) {
+        const existingTag = this.#tags.find((t) => t.value === tagName)
         if (existingTag) {
             // If it exists, delete the owners if they exist
-            for (const owner of tag.owners) {
-                existingTag.owners.delete(owner)
+            for (const track of tracks) {
+                existingTag.owners.delete(track)
+                // track.tags.delete(existingTag)
+                // const trackTags = this.#tagsByTrack.get(track.path)
+                // if (trackTags) {
+                //     this.#tagsByTrack.set(
+                //         track.path,
+                //         trackTags.filter((t) => t.value !== tagName)
+                //     )
+                // }
             }
         }
     }
@@ -85,7 +132,6 @@ export class TagSet {
                 newSet.add(tag)
             }
         }
-
         return newSet
     }
 
@@ -95,88 +141,20 @@ export class TagSet {
 
     /**
      * Find all the tags owned by the given track.
-     * @param track The track to search by
-     * @param opts Options
+     * @param path The track path to search by
      * @returns A `TagSet` with all the found tags
      */
-    getByTrack(
-        track: TrackIdentifiers,
-        opts?: { force?: boolean; fuzzy?: boolean }
-    ) {
-        // Check if there are cached tags under the owner's path
-        // const cachedTags = this.#byPath.get(owner.path)
-        // if (cachedTags && !opts?.force) {
-        //     return cachedTags
-        // }
-
-        let foundTags: TagSet = new TagSet([])
-        for (const tag of this.#tags) {
-            // For every tag, check if the given owner owns it
-            for (const tagOwner of tag.owners) {
-                // 1. Check by title and album, if they exist
-                if (
-                    track.title &&
-                    track.album &&
-                    tagOwner.title === track.title &&
-                    tagOwner.album === track.album
-                ) {
-                    foundTags.add(tag)
-                    break
-                }
-
-                // 2. Check by title and artist, if they exist
-                if (
-                    track.title &&
-                    track.artist &&
-                    tagOwner.title === track.title &&
-                    tagOwner.artist === track.artist
-                ) {
-                    foundTags.add(tag)
-                    break
-                }
-
-                // 3. Check by title only, if it exists
-                if (track.title && tagOwner.title === track.title) {
-                    foundTags.add(tag)
-                    break
-                }
-
-                // 4. Check by title only, if it exists, with fuzzy matching
-                if (track.title && opts?.fuzzy) {
-                    const fuseTitle = new Fuse([tagOwner], {
-                        keys: ['title'],
-                        threshold: 0.3
-                    })
-                    const searchResult = fuseTitle.search(track.title)
-                    if (searchResult.length > 0) {
-                        foundTags.add(tag)
-                    }
-                }
-
-                // 5. Check by filename
-                if (tagOwner.filename === track.filename) {
-                    foundTags.add(tag)
-                    break
-                }
-
-                // 6. Check by filename, with fuzzy matching
-                if (opts?.fuzzy) {
-                    const fuseFilename = new Fuse([tagOwner], {
-                        keys: ['filename'],
-                        threshold: 0.1
-                    })
-                    const searchResult = fuseFilename.search(track.filename)
-                    if (searchResult.length > 0) {
-                        foundTags.add(tag)
-                    }
-                }
-            }
+    getByTrack(path: string) {
+        // Check cache first
+        const cachedTags = this.#tagsByTrack.get(path)
+        if (cachedTags) {
+            return new TagSet(cachedTags)
         }
 
-        // Update the cache with the found tracks
-        // this.#byPath.set(owner.path, foundTags)
-
-        return foundTags
+        // If not in cache (shouldn't happen with proper sync), rebuild cache
+        this.#updateCache()
+        const rebuiltCachedTags = this.#tagsByTrack.get(path)
+        return new TagSet(rebuiltCachedTags ?? [])
     }
 
     /**

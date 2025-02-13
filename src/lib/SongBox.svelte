@@ -1,12 +1,12 @@
 <script lang="ts">
     import {
         appState,
-        appTags,
+        appTracks,
         settings,
         skipRemoveOnEnd,
         virtualListTop
     } from './stores.svelte'
-    import { type CachedTrack, type MaskedTrack, type Tag } from './types'
+    import { type CachedTrack } from './types'
     import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
     import {
         PLAY_PARALLEL,
@@ -21,24 +21,21 @@
     import { Layers, Plus, Replace, TagIcon } from 'lucide-svelte'
     import { getCover, permuteTracks } from './utils/utils'
     import { onDestroy, onMount } from 'svelte'
-    import TagEditor from './popovers/TagEditor.svelte'
     import TagChip from './utils/TagChip.svelte'
     import { LoopState } from './state/player.svelte'
     import { TagGroupSet } from './state/taggroupset.svelte'
+    import { goto } from '$app/navigation'
 
     interface Props {
         track: CachedTrack
-        tracks: MaskedTrack[]
     }
 
-    let { track, tracks }: Props = $props()
+    let { track }: Props = $props()
 
-    let showTagEditor = $state(false)
     let showContextMenu = $state(false)
     let contextMenuX = $state(0)
     let contextMenuY = $state(0)
     let coverImage: string | undefined = $state()
-    let tags = $state(appTags.getByTrack(track))
 
     function handleContextMenu(event: MouseEvent) {
         event.preventDefault()
@@ -59,7 +56,7 @@
         // for us to even click on it
         const tracksToSend = permuteTracks(
             track,
-            tracks.filter((mt) => mt.visible).map((mt) => mt.track)
+            appTracks.visible()
         ) as CachedTrack[]
         await emit(CREATE_PLAYLIST, {
             guildId: appState.guildId,
@@ -96,14 +93,6 @@
                 volume: appState.player.volume,
                 looping
             } satisfies PlayParallelPayload)
-        }
-    }
-
-    function handleTagEdit(tag: Tag, outcome: 'add' | 'remove') {
-        if (outcome === 'add') {
-            tags.add(tag)
-        } else if (outcome === 'remove') {
-            tags.delete(tag)
         }
     }
 
@@ -149,7 +138,7 @@
         </h3>
         <p class="opacity-60 cursor-pointer line-clamp-3">{track.album}</p>
         <div class="mt-2 flex flex-wrap justify-center gap-1">
-            {#each tags
+            {#each track.tags
                 .sorted()
                 .filter((tag) => tag.group !== TagGroupSet.ALBUM_GROUP && tag.group !== TagGroupSet.ARTIST_GROUP) as tag}
                 <TagChip
@@ -172,7 +161,7 @@
                 Icon: TagIcon,
                 label: 'Edit tags',
                 onclick: async () => {
-                    showTagEditor = !showTagEditor
+                    await goto(`/tag-editor?track=${track.filename}`)
                 }
             },
             {
@@ -199,5 +188,3 @@
         ]}
     />
 {/if}
-
-<TagEditor bind:open={showTagEditor} {track} {handleTagEdit} />

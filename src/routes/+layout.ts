@@ -82,7 +82,6 @@ export const load = (async () => {
 
     // Tags
     const cachedGroups = (await tagsStore.get<TagGroup[]>(TAGS_SETTING)) ?? []
-
     for (const group of cachedGroups) {
         //@ts-expect-error JavaScript has no clue how to deserialize into a class so we create TagSets manually
         group.tagSet = new TagSet(group.tagSet)
@@ -134,7 +133,6 @@ export const load = (async () => {
             // If there is a track to overwrite, overwrite the current track
             // otherwise push to the end of queue
             let endedTrack: Track | undefined
-            const before = Date.now()
             if (skipRemoveOnEnd.toSkip === 0) {
                 let res = appState.playlist.next()
                 endedTrack = res?.justEnded
@@ -147,12 +145,6 @@ export const load = (async () => {
             // Update recent tracks if anything was removed
             if (endedTrack) {
                 appState.recentlyPlayed.push(endedTrack)
-            }
-            const after = Date.now()
-            if (after - before < 5) {
-                console.log(`Took less than 5 ms`)
-            } else {
-                console.log(`Took ${after - before} ms`)
             }
 
             if (!appState.playlist.isEmpty()) return

@@ -6,16 +6,16 @@
     import { getContext, onMount } from 'svelte'
     import { load } from '@tauri-apps/plugin-store'
     import {
+        appTracks,
         AUDIO_SOURCES_SETTING,
         SETTINGS_FILENAME
     } from '$lib/stores.svelte'
+    import { TagSet } from '$lib/state/tagset.svelte'
 
     interface Props {
-        addTrack: (track: CachedTrack) => void
-        removeTrack: (track: CachedTrack) => void
         getCachedTracks: () => Promise<void>
     }
-    let { addTrack, removeTrack, getCachedTracks }: Props = $props()
+    let { getCachedTracks }: Props = $props()
 
     let sources: AudioSource[] = $state([])
     const toast: ToastContext = getContext('toast')
@@ -65,9 +65,19 @@
         const onGetTrack = new Channel<TrackPacket>()
         onGetTrack.onmessage = (packet) => {
             if (packet.event === 'add') {
-                addTrack(packet.track)
+                const track: CachedTrack = {
+                    ...packet.track,
+                    //@ts-expect-error
+                    tags: new TagSet(packet.track.tags)
+                }
+                appTracks.add(track)
             } else if (packet.event === 'remove') {
-                removeTrack(packet.track)
+                const track: CachedTrack = {
+                    ...packet.track,
+                    //@ts-expect-error
+                    tags: new TagSet(packet.track.tags)
+                }
+                appTracks.delete(track)
             } else if (packet.event === 'refresh') {
                 getCachedTracks()
             }

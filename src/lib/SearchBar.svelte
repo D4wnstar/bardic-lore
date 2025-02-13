@@ -1,12 +1,6 @@
 <script lang="ts">
     import { Search } from 'lucide-svelte'
-
-    interface Props {
-        searchTerm: string
-        filterTracks: () => void
-    }
-
-    let { searchTerm = $bindable(''), filterTracks }: Props = $props()
+    import { appState, appTracks, selectedTags } from './stores.svelte'
 </script>
 
 <header
@@ -15,8 +9,13 @@
     <Search />
     <input
         type="search"
-        oninput={(_) => filterTracks()}
-        bind:value={searchTerm}
+        oninput={(_) =>
+            appTracks.filter(
+                selectedTags,
+                appState.tagsMode,
+                appState.trackSearchTerm
+            )}
+        bind:value={appState.trackSearchTerm}
         class="h-12 grow border-none bg-transparent focus:ring-0"
         placeholder="Search songs..."
     />
